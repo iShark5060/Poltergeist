@@ -94,7 +94,10 @@ pub fn tr(source: &str) -> String {
     let Some(catalog) = CATALOGS.get(locale.as_str()) else {
         return source.to_string();
     };
-    catalog.get(source).cloned().unwrap_or_else(|| source.to_string())
+    catalog
+        .get(source)
+        .cloned()
+        .unwrap_or_else(|| source.to_string())
 }
 
 /// Translate `source` and substitute `{0}`, `{1}`, … placeholders

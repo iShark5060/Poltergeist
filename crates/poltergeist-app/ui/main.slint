@@ -4,10 +4,8 @@
 // into the properties/callbacks declared on `MainWindow`.
 //
 // FontAwesome 7 Free + Brands fonts are embedded at compile time via
-// the `import "..."` statements below so that Text elements with the
-// matching `font-family` render the proper glyphs (we pass them as
-// literal unicode strings since the glyph -> string mapping is dynamic
-// — see `icon_registry.rs`).
+// the `import "..."` statements below. Tree rows get glyph strings from
+// Rust (`IconAssets`); the rest of the UI uses literal `\u{f…}` codes.
 
 import "../../../assets/Geist[wght].ttf";
 import "../../../assets/GeistMono[wght].ttf";
@@ -330,6 +328,12 @@ component FieldLabel inherits Text {
     width: root.label-width;
     horizontal-alignment: right;
     vertical-alignment: center;
+}
+
+// Options modal: wider label column so translated strings (e.g. "Default mode")
+// stay readable at the same body font size as the rest of the app.
+component OptionsFieldLabel inherits FieldLabel {
+    label-width: 168px;
 }
 
 // ---------- Tree row -----------------------------------------------------
@@ -771,7 +775,7 @@ component ThemedComboBox inherits Rectangle {
                 padding-left: 10px;
                 padding-right: 8px;
                 spacing: 6px;
-                alignment: start;
+                alignment: stretch;
                 combo-val := Text {
                     horizontal-stretch: 1;
                     vertical-alignment: center;
@@ -782,6 +786,9 @@ component ThemedComboBox inherits Rectangle {
                         : "";
                     overflow: elide;
                 }
+                // Explicit spacer keeps the chevron pinned to the right edge
+                // even when layout heuristics prefer content-sized children.
+                Rectangle { horizontal-stretch: 1; }
                 FaGlyph {
                     glyph: "\u{f078}";
                     weight: 900;
@@ -1359,6 +1366,15 @@ export component MainWindow inherits Window {
     // Tray / backdrop / Apply all flip `show_options_panel`; Rust syncs
     // Options accent preview + restores Theme when the sheet closes.
     changed show_options_panel => { root.options_panel_visibility(root.show_options_panel); }
+
+    // Main window geometry (logical px) — Rust debounces and persists to config.
+    callback main_window_geometry_changed();
+    changed width => {
+        root.main_window_geometry_changed();
+    }
+    changed height => {
+        root.main_window_geometry_changed();
+    }
 
     // ---------- Callbacks (out to Rust) ---------------------------------
     // Fire-and-forget signal that some edit happened. Rust kicks a
@@ -2136,7 +2152,7 @@ export component MainWindow inherits Window {
                                             ? Theme.accent-soft
                                             : Theme.bg-input);
                                     FaGlyph {
-                                        // Classic Solid — matches `assets/Icon to Font Substitution.txt` (translate.png)
+                                        // Classic Solid — translation token (FA f1ab)
                                         glyph: "\u{f1ab}";
                                         weight: 900;
                                         glyph-size: 15px;
@@ -3172,7 +3188,7 @@ export component MainWindow inherits Window {
                             spacing: 8px;
                             HorizontalLayout {
                                 spacing: 8px;
-                                FieldLabel { text: @tr("Hotkey"); }
+                                OptionsFieldLabel { text: @tr("Hotkey"); }
                                 HotkeyCapture {
                                     hotkey-text: root.hotkey_text;
                                     placeholder: "Click and press a key combo (Esc to clear)";
@@ -3185,7 +3201,7 @@ export component MainWindow inherits Window {
                             }
                             HorizontalLayout {
                                 spacing: 8px;
-                                FieldLabel { text: @tr("Date format"); }
+                                OptionsFieldLabel { text: @tr("Date format"); }
                                 LabeledLineEdit {
                                     value <=> root.date_format_text;
                                     placeholder: "%d/%m/%Y";
@@ -3195,7 +3211,7 @@ export component MainWindow inherits Window {
                             }
                             HorizontalLayout {
                                 spacing: 8px;
-                                FieldLabel { text: @tr("Preview"); }
+                                OptionsFieldLabel { text: @tr("Preview"); }
                                 Text {
                                     text: root.date_format_preview_text;
                                     color: Theme.text-dim;
@@ -3208,7 +3224,7 @@ export component MainWindow inherits Window {
                             }
                             HorizontalLayout {
                                 spacing: 8px;
-                                FieldLabel { text: @tr("Default mode"); }
+                                OptionsFieldLabel { text: @tr("Default mode"); }
                                 ThemedComboBox {
                                     model: [@tr("Clipboard (Ctrl+V)"), @tr("Clipboard (Shift+Ins)"), @tr("Typing (key events)"), @tr("Typing (web compat)")];
                                     current-index <=> root.default_injection_index;
@@ -3217,58 +3233,51 @@ export component MainWindow inherits Window {
                             }
                             HorizontalLayout {
                                 spacing: 8px;
-                                FieldLabel { text: @tr("Theme"); }
-                                ThemedComboBox {
-                                    model: [@tr("Auto"), @tr("Light"), @tr("Dark")];
-                                    current-index <=> root.theme_index;
+                                OptionsFieldLabel { text: @tr("Theme & accent"); }
+                                HorizontalLayout {
+                                    spacing: 10px;
                                     horizontal-stretch: 1;
-                                }
-                            }
-                            HorizontalLayout {
-                                spacing: 8px;
-                                FieldLabel { text: @tr("Accent colour"); }
-                                Rectangle {
-                                    width: 40px;
-                                    height: 32px;
-                                    border-radius: Theme.radius-sm;
-                                    border-width: 1px;
-                                    border-color: Theme.border;
-                                    background: opt-accent-ta.has-hover
-                                        ? Theme.bg-hover
-                                        : Theme.bg-input;
-                                    Rectangle {
-                                        x: (parent.width - 20px) / 2;
-                                        y: (parent.height - 20px) / 2;
-                                        width: 20px;
-                                        height: 20px;
-                                        border-radius: 4px;
-                                        border-width: 1px;
-                                        border-color: Theme.border-strong;
-                                        background: root.options_accent_preview;
+                                    ThemedComboBox {
+                                        model: [@tr("Auto"), @tr("Light"), @tr("Dark")];
+                                        current-index <=> root.theme_index;
+                                        horizontal-stretch: 1;
                                     }
-                                    opt-accent-ta := TouchArea {
-                                        clicked => {
-                                            root.color_popup_target = "accent";
-                                            root.color_popup_x =
-                                                self.absolute-position.x
-                                                + (self.width - 216px) / 2;
-                                            root.color_popup_y =
-                                                self.absolute-position.y + self.height + 4px;
-                                            root.show_color_popup = true;
+                                    Rectangle {
+                                        width: 40px;
+                                        height: 32px;
+                                        border-radius: Theme.radius-sm;
+                                        border-width: 1px;
+                                        border-color: Theme.border;
+                                        background: opt-accent-ta.has-hover
+                                            ? Theme.bg-hover
+                                            : Theme.bg-input;
+                                        Rectangle {
+                                            x: (parent.width - 20px) / 2;
+                                            y: (parent.height - 20px) / 2;
+                                            width: 20px;
+                                            height: 20px;
+                                            border-radius: 4px;
+                                            border-width: 1px;
+                                            border-color: Theme.border-strong;
+                                            background: root.options_accent_preview;
+                                        }
+                                        opt-accent-ta := TouchArea {
+                                            clicked => {
+                                                root.color_popup_target = "accent";
+                                                root.color_popup_x =
+                                                    self.absolute-position.x
+                                                    + (self.width - 216px) / 2;
+                                                root.color_popup_y =
+                                                    self.absolute-position.y + self.height + 4px;
+                                                root.show_color_popup = true;
+                                            }
                                         }
                                     }
                                 }
-                                Text {
-                                    text: root.options_accent_hex;
-                                    color: Theme.text-dim;
-                                    font-size: 13px;
-                                    vertical-alignment: center;
-                                    horizontal-stretch: 1;
-                                }
                             }
                             HorizontalLayout {
                                 spacing: 8px;
-                                FieldLabel { text: @tr("Language"); }
+                                OptionsFieldLabel { text: @tr("Language"); }
                                 language-combo := ThemedComboBox {
                                     model: root.available_languages;
                                     current-index <=> root.language_index;
@@ -3287,16 +3296,16 @@ export component MainWindow inherits Window {
                             spacing: 8px;
                             HorizontalLayout {
                                 spacing: 8px;
-                                FieldLabel { text: @tr("Share path"); }
+                                OptionsFieldLabel { text: @tr("Share path"); }
                                 LabeledLineEdit {
                                     value <=> root.team_share_text;
-                                    placeholder: "\\\\server\\share\\poltergeist";
+                                    placeholder: "\\\\server\\share\\poltergeist  |  https://…/folder/";
                                     horizontal-stretch: 1;
                                 }
                             }
                             HorizontalLayout {
                                 spacing: 8px;
-                                FieldLabel { text: ""; }
+                                OptionsFieldLabel { text: ""; }
                                 // Color-coded status dot + status icon +
                                 // label, driven by team_share_status_kind
                                 // so we never show a green check for "no
@@ -3350,7 +3359,7 @@ export component MainWindow inherits Window {
                             spacing: 8px;
                             HorizontalLayout {
                                 spacing: 8px;
-                                FieldLabel { text: @tr("API key"); }
+                                OptionsFieldLabel { text: @tr("API key"); }
                                 LabeledLineEdit {
                                     value <=> root.deepl_api_key_text;
                                     placeholder: @tr("DeepL API key");
@@ -3409,7 +3418,7 @@ export component MainWindow inherits Window {
                             }
                             HorizontalLayout {
                                 spacing: 8px;
-                                FieldLabel { text: ""; }
+                                OptionsFieldLabel { text: ""; }
                                 Rectangle {
                                     width: 10px;
                                     height: 10px;
@@ -3440,7 +3449,7 @@ export component MainWindow inherits Window {
                                 // remaining width. The previous `start` setting
                                 // collapsed the input to its preferred width
                                 // (effectively zero) and made it invisible.
-                                FieldLabel {
+                                OptionsFieldLabel {
                                     text: @tr("Patterns");
                                     vertical-alignment: top;
                                 }
@@ -3483,8 +3492,8 @@ export component MainWindow inherits Window {
                         spacing: 8px;
                         alignment: end;
                         Rectangle {
-                            width: 92px;
-                            height: 32px;
+                            width: 96px;
+                            height: 36px;
                             border-radius: Theme.radius-sm;
                             background: cancel-ta.has-hover ? Theme.bg-active : Theme.bg-input;
                             border-color: Theme.border;
@@ -3492,7 +3501,8 @@ export component MainWindow inherits Window {
                             Text {
                                 text: @tr("Cancel");
                                 color: Theme.text;
-                                font-size: 12px;
+                                font-size: 16px;
+                                font-weight: 600;
                                 horizontal-alignment: center;
                                 vertical-alignment: center;
                                 width: parent.width;
@@ -3503,14 +3513,14 @@ export component MainWindow inherits Window {
                             }
                         }
                         Rectangle {
-                            width: 110px;
-                            height: 32px;
+                            width: 114px;
+                            height: 36px;
                             border-radius: Theme.radius-sm;
                             background: apply-ta.has-hover ? Theme.accent-hover : Theme.accent;
                             Text {
                                 text: @tr("Apply");
                                 color: white;
-                                font-size: 12px;
+                                font-size: 16px;
                                 font-weight: 700;
                                 horizontal-alignment: center;
                                 vertical-alignment: center;
@@ -3542,10 +3552,6 @@ export component MainWindow inherits Window {
     }
 
     // ---------- About modal -----------------------------------------------
-    //
-    // Mirrors the Python AboutDialog: app icon + title + version on top,
-    // author/copyright line, GitHub button, divider, then icon credits
-    // pointing at FontAwesome 7 (the icon set we actually use).
     if root.show_about_panel : Rectangle {
         background: Theme.is-light ? #00000033 : #0000007a;
         TouchArea { clicked => { root.show_about_panel = false; } }
@@ -3554,7 +3560,7 @@ export component MainWindow inherits Window {
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
             width: min(520px, parent.width - 80px);
-            height: min(430px, parent.height - 80px);
+            height: min(440px, parent.height - 80px);
             background: Theme.bg-elev;
             border-color: Theme.border-strong;
             border-width: 1px;
@@ -3599,9 +3605,9 @@ export component MainWindow inherits Window {
 
                 // Author / copyright
                 Text {
-                    text: @tr("Created by Lutz Schwemer Panchez\nCopyright © 2026 Lutz Schwemer Panchez. All rights reserved.");
+                    text: @tr("Copyright © 2026 Lutz Schwemer Panchez. All rights reserved.");
                     color: Theme.text-dim;
-                    font-size: 12px;
+                    font-size: 14px;
                     wrap: word-wrap;
                 }
 
@@ -3609,7 +3615,7 @@ export component MainWindow inherits Window {
                 HorizontalLayout {
                     alignment: start;
                     Rectangle {
-                        width: gh-text.preferred-width + 38px;
+                        width: gh-text.preferred-width + 42px;
                         height: 30px;
                         border-radius: Theme.radius-sm;
                         background: gh-ta.has-hover ? Theme.bg-hover : Theme.bg-input;
@@ -3644,33 +3650,16 @@ export component MainWindow inherits Window {
                 }
 
                 Rectangle { height: 1px; background: Theme.border; }
-
-                // Icon credits ----------------------------------------
-                //
-                // Two creditable sources:
-                //   1. Application launcher icons (the .png/.ico that
-                //      Windows shows for the EXE and the tray) are the
-                //      original Flaticon assets by "Pixel perfect" —
-                //      same as the Python build. Kept verbatim for
-                //      shell-icon compatibility.
-                //   2. Every in-UI glyph (toolbar, tree, options,
-                //      review modal, …) renders from Font Awesome 7
-                //      Free; we no longer pack the .png variants.
-                //
-                // Both URLs are rendered as their own clickable rows
-                // so the user can copy or open them — Slint Text has
-                // no rich-text `<a>` rendering so we hand-roll the
-                // hyperlink look instead of relying on `text:` markup.
                 Text {
                     text: @tr("Icon credits");
                     color: Theme.text;
-                    font-size: 12px;
+                    font-size: 14px;
                     font-weight: 700;
                 }
                 Text {
-                    text: @tr("Application launcher icon by Pixel perfect — Flaticon:");
+                    text: @tr("Application icons created with assets from:\nPixel perfect - Flaticon");
                     color: Theme.text-dim;
-                    font-size: 11px;
+                    font-size: 14px;
                     wrap: word-wrap;
                 }
                 flaticon-link-row := HorizontalLayout {
@@ -3681,13 +3670,10 @@ export component MainWindow inherits Window {
                         height: flaticon-link-text.preferred-height + 2px;
                         background: transparent;
                         flaticon-link-text := Text {
-                            text: @tr("https://www.flaticon.com/free-icons/info");
+                            text: @tr("https://www.flaticon.com/");
                             color: flaticon-link-ta.has-hover ? Theme.accent-hover : Theme.accent;
-                            font-size: 11px;
+                            font-size: 14px;
                             font-weight: 600;
-                            // Slint's Text has no `text-decoration: underline`
-                            // — we approximate the underline with a thin bar
-                            // below; close enough at 11px.
                         }
                         Rectangle {
                             x: 0;
@@ -3699,15 +3685,15 @@ export component MainWindow inherits Window {
                         flaticon-link-ta := TouchArea {
                             mouse-cursor: pointer;
                             clicked => {
-                                root.open_url("https://www.flaticon.com/free-icons/info");
+                                root.open_url("https://www.flaticon.com/");
                             }
                         }
                     }
                 }
                 Text {
-                    text: @tr("In-app UI icons by Font Awesome 7 Free (Solid + Regular) and Font Awesome 7 Brands, licensed CC BY 4.0:");
+                    text: @tr("UI icons by:\nFont Awesome 7 Free (Solid + Regular)\nFont Awesome 7 Brands");
                     color: Theme.text-dim;
-                    font-size: 11px;
+                    font-size: 14px;
                     wrap: word-wrap;
                 }
                 fa-link-row := HorizontalLayout {
@@ -3718,9 +3704,9 @@ export component MainWindow inherits Window {
                         height: fa-link-text.preferred-height + 2px;
                         background: transparent;
                         fa-link-text := Text {
-                            text: @tr("https://fontawesome.com");
+                            text: @tr("https://fontawesome.com/");
                             color: fa-link-ta.has-hover ? Theme.accent-hover : Theme.accent;
-                            font-size: 11px;
+                            font-size: 14px;
                             font-weight: 600;
                         }
                         Rectangle {
@@ -3733,7 +3719,7 @@ export component MainWindow inherits Window {
                         fa-link-ta := TouchArea {
                             mouse-cursor: pointer;
                             clicked => {
-                                root.open_url("https://fontawesome.com");
+                                root.open_url("https://fontawesome.com/");
                             }
                         }
                     }

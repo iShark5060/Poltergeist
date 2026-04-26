@@ -1,5 +1,4 @@
 mod i18n;
-mod icon_registry;
 mod picker;
 
 use anyhow::Result;
@@ -20,7 +19,8 @@ use poltergeist_platform_win::injector::{
 };
 use rfd::{MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
 use slint::{
-    CloseRequestResponse, Color, Global, ModelRc, SharedString, Timer, TimerMode, VecModel,
+    CloseRequestResponse, Color, Global, LogicalSize, ModelRc, SharedString, Timer, TimerMode,
+    VecModel,
 };
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
@@ -37,13 +37,25 @@ use tray_icon::{
     TrayIconId,
 };
 
-use crate::icon_registry::IconRegistry;
-
 slint::include_modules!();
 
 fn init_logging() {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     tracing_subscriber::fmt().with_env_filter(filter).init();
+}
+
+/// Persists the main window's inner size (logical pixels, clamped to the Slint min size).
+fn persist_main_window_geometry(win: &slint::Window, state: &RefCell<AppState>, base: &Path) {
+    let sz = win.size();
+    let scale = f64::from(win.scale_factor().max(1.0));
+    let mut lw = f64::from(sz.width as f32) / scale;
+    let mut lh = f64::from(sz.height as f32) / scale;
+    lw = lw.max(860.0);
+    lh = lh.max(560.0);
+    let mut st = state.borrow_mut();
+    st.cfg.settings.main_window_width = Some(lw);
+    st.cfg.settings.main_window_height = Some(lh);
+    let _ = config::save(base, &st.cfg);
 }
 
 fn base_dir() -> PathBuf {
@@ -71,24 +83,6 @@ fn base_dir() -> PathBuf {
     }
 
     exe_dir
-}
-
-fn substitution_file_path(base_dir: &Path) -> PathBuf {
-    // Two valid locations: the bundled `assets/` folder shipped next to the
-    // binary, or the workspace root during `cargo run`. We deliberately do
-    // NOT fall back to `_Resources/` — that is a Photoshop scratch dir in
-    // the parent Python project and is .gitignored everywhere.
-    let bundled = base_dir
-        .join("assets")
-        .join("Icon to Font Substitution.txt");
-    if bundled.exists() {
-        return bundled;
-    }
-    let workspace_local = base_dir.join("Icon to Font Substitution.txt");
-    if workspace_local.exists() {
-        return workspace_local;
-    }
-    bundled
 }
 
 fn collect_snippet_names(tree: &[Node], out: &mut Vec<String>) {
@@ -214,12 +208,7 @@ fn derive_accent_family(base: Color, is_light: bool) -> (Color, Color, Color) {
     };
     let t = 0.62_f64;
     let lerp = |c: f64, m: f64| -> u8 { (c * (1.0 - t) + m * t).round().clamp(0.0, 255.0) as u8 };
-    let soft = Color::from_argb_u8(
-        0xff,
-        lerp(rf, mx),
-        lerp(gf, my),
-        lerp(bf, mz),
-    );
+    let soft = Color::from_argb_u8(0xff, lerp(rf, mx), lerp(gf, my), lerp(bf, mz));
     (base, hover, soft)
 }
 
@@ -621,11 +610,7 @@ fn compute_move_destination(
 /// prefix would, for example, drag `[0,0]` (child of folder A) onto
 /// folder B at top-level `[1]`, see "src[0]=0 < dest[0]=1", subtract 1,
 /// and then incorrectly drop into A instead of B.
-fn move_node_in_tree(
-    nodes: &mut Vec<Node>,
-    src_path: &[usize],
-    mut dest_path: Vec<usize>,
-) -> bool {
+fn move_node_in_tree(nodes: &mut Vec<Node>, src_path: &[usize], mut dest_path: Vec<usize>) -> bool {
     if src_path.is_empty() || dest_path.is_empty() {
         return false;
     }
@@ -1144,9 +1129,7 @@ fn refresh_personal_editor(window: &MainWindow, st: &mut AppState) {
     }
     st.personal_paths = paths;
     window.set_personal_tree_rows(rows_model(rows));
-    window.set_selected_personal_index(
-        st.selected_personal.map(|i| i as i32).unwrap_or(-1),
-    );
+    window.set_selected_personal_index(st.selected_personal.map(|i| i as i32).unwrap_or(-1));
 
     let selected_path = st
         .selected_personal
@@ -1471,40 +1454,33 @@ fn effective_is_light(mode: ThemeMode) -> bool {
     match mode {
         ThemeMode::Light => true,
         ThemeMode::Dark => false,
-        ThemeMode::Auto => poltergeist_platform_win::theme::system_uses_light_theme()
-            .unwrap_or(false),
+        ThemeMode::Auto => {
+            poltergeist_platform_win::theme::system_uses_light_theme().unwrap_or(false)
+        }
     }
 }
 
-/// Resolved icon/color palette pulled from `IconRegistry` once at startup so
-/// the recursive flatten functions don't have to do hash lookups per node.
+/// Font Awesome tree-row glyphs (FA7 Regular/Solid where noted). Kept in one
+/// place so `flatten_tree` / `flatten_team_tree` stay allocation-light.
 #[derive(Clone)]
 struct IconAssets {
     folder_glyph: String,
     snippet_glyph: String,
-    /// Glyph used for typing-mode snippets; mirrors Python `_snippet_icon`
-    /// which swaps the clipboard icon for a keyboard when the snippet's
-    /// effective injection mode is `typing`.
+    /// Typing-mode snippets use the keyboard glyph; other injection modes use
+    /// the clipboard-style glyph (parity with the old Python `_snippet_icon`).
     keyboard_glyph: String,
     team_locked_color: Color,
 }
 
-impl IconAssets {
-    fn from_registry(registry: Option<&IconRegistry>) -> Self {
-        let glyph = |key: &str, fallback: char| -> String {
-            registry
-                .and_then(|r| r.get(key))
-                .and_then(|spec| spec.glyph())
-                .unwrap_or(fallback)
-                .to_string()
-        };
-        IconAssets {
+impl Default for IconAssets {
+    fn default() -> Self {
+        Self {
             // f07c = folder-open (Regular)
-            folder_glyph: glyph("folder", '\u{f07c}'),
+            folder_glyph: '\u{f07c}'.to_string(),
             // f328 = clipboard-list (Regular)
-            snippet_glyph: glyph("clipboard", '\u{f328}'),
+            snippet_glyph: '\u{f328}'.to_string(),
             // f11c = keyboard (Regular)
-            keyboard_glyph: glyph("keyboard", '\u{f11c}'),
+            keyboard_glyph: '\u{f11c}'.to_string(),
             team_locked_color: Color::from_argb_u8(0xff, 0xb5, 0xba, 0xc1),
         }
     }
@@ -1765,19 +1741,27 @@ enum Edition {
 }
 
 fn detect_edition(base_dir: &Path) -> Edition {
-    let env = std::env::var("POLTERGEIST_EDITION")
-        .ok()
-        .map(|v| v.trim().to_ascii_lowercase());
-    if matches!(env.as_deref(), Some("admin")) {
-        return Edition::Admin;
-    }
-    if matches!(env.as_deref(), Some("user")) {
-        return Edition::User;
-    }
-    if base_dir.join("_admin.flag").exists() {
+    #[cfg(feature = "admin-edition")]
+    {
+        let _ = base_dir;
         Edition::Admin
-    } else {
-        Edition::User
+    }
+    #[cfg(not(feature = "admin-edition"))]
+    {
+        let env = std::env::var("POLTERGEIST_EDITION")
+            .ok()
+            .map(|v| v.trim().to_ascii_lowercase());
+        if matches!(env.as_deref(), Some("admin")) {
+            return Edition::Admin;
+        }
+        if matches!(env.as_deref(), Some("user")) {
+            return Edition::User;
+        }
+        if base_dir.join("_admin.flag").exists() {
+            Edition::Admin
+        } else {
+            Edition::User
+        }
     }
 }
 
@@ -1842,9 +1826,7 @@ fn open_popup_for_nodes(
     let filtered = filter_nodes_for_popup(source_nodes, &st.current_context);
     st.popup_nav_stack = vec![filtered];
     refresh_popup_visible(snippet_popup, st);
-    window.set_status_text(
-        i18n::tr_format("Popup opened from {0}", &[&source_label]).into(),
-    );
+    window.set_status_text(i18n::tr_format("Popup opened from {0}", &[&source_label]).into());
     snippet_popup.set_is_light(window.get_is_light_theme());
     position_popup_at_cursor(snippet_popup, st);
     let _ = snippet_popup.show();
@@ -2320,8 +2302,7 @@ fn inject_snippet_now(
         .chain(st.team_tree.iter())
         .cloned()
         .collect::<Vec<_>>();
-    let snippet_lookup =
-        |name: &str| -> Option<String> { find_snippet_by_name(&all_nodes, name) };
+    let snippet_lookup = |name: &str| -> Option<String> { find_snippet_by_name(&all_nodes, name) };
     let prepared = tokens::expand_conditionals(
         &tokens::expand_includes(&snippet.text, Some(&snippet_lookup)),
         Some(&st.current_context),
@@ -2557,18 +2538,17 @@ fn main() -> Result<()> {
     // We deliberately use the same Global\ mutex names as the Python
     // parent (`main.py`), so a Rust+Python mixed install on the same
     // machine still cooperates within the same edition.
-    let _instance_guard = match poltergeist_platform_win::single_instance::try_acquire(
-        edition == Edition::Admin,
-    ) {
-        poltergeist_platform_win::single_instance::AcquireResult::Acquired(guard) => guard,
-        poltergeist_platform_win::single_instance::AcquireResult::AlreadyRunning => {
-            tracing::info!("another Poltergeist instance is already running; exiting");
-            poltergeist_platform_win::single_instance::show_already_running_dialog(
-                edition == Edition::Admin,
-            );
-            return Ok(());
-        }
-    };
+    let _instance_guard =
+        match poltergeist_platform_win::single_instance::try_acquire(edition == Edition::Admin) {
+            poltergeist_platform_win::single_instance::AcquireResult::Acquired(guard) => guard,
+            poltergeist_platform_win::single_instance::AcquireResult::AlreadyRunning => {
+                tracing::info!("another Poltergeist instance is already running; exiting");
+                poltergeist_platform_win::single_instance::show_already_running_dialog(
+                    edition == Edition::Admin,
+                );
+                return Ok(());
+            }
+        };
 
     // Captured *before* `config::load` would otherwise materialise the
     // file via downstream save paths — we use it later to drive the
@@ -2598,10 +2578,7 @@ fn main() -> Result<()> {
     collect_snippet_names(&team_pack.tree, &mut team_names);
     let should_start_hidden = !(cfg.tree_personal.is_empty() && team_pack.tree.is_empty());
 
-    let icon_map_path = substitution_file_path(&app_base);
-    let icon_registry = icon_registry::IconRegistry::from_substitution_file(&icon_map_path).ok();
-    let icon_count = icon_registry.as_ref().map(|m| m.len()).unwrap_or(0);
-    let icons = IconAssets::from_registry(icon_registry.as_ref());
+    let icons = IconAssets::default();
 
     let translation_summary = if !cfg.settings.deepl_api_key.trim().is_empty() {
         match TranslationService::new(cfg.settings.deepl_api_key.clone()) {
@@ -2621,15 +2598,6 @@ fn main() -> Result<()> {
     let (sw_top, sw_bottom) = build_color_swatch_row_pair();
     main_window.set_color_swatch_row_top(sw_top);
     main_window.set_color_swatch_row_bottom(sw_bottom);
-    let weak_close = main_window.as_weak();
-    main_window.window().on_close_requested(move || {
-        if let Some(window) = weak_close.upgrade() {
-            window.set_status_text(
-                i18n::tr("Window hidden to tray. Use tray icon or hotkey to reopen.").into(),
-            );
-        }
-        CloseRequestResponse::HideWindow
-    });
 
     // Borderless snippet picker — separate top-level window so it can be
     // positioned at the OS cursor (rather than inside MainWindow's frame)
@@ -2668,6 +2636,65 @@ fn main() -> Result<()> {
         picker_session: None,
     }));
     let _ = (personal_names, team_names);
+
+    if let (Some(w), Some(h)) = (
+        state.borrow().cfg.settings.main_window_width,
+        state.borrow().cfg.settings.main_window_height,
+    ) {
+        let w = w.max(860.0) as f32;
+        let h = h.max(560.0) as f32;
+        main_window.window().set_size(LogicalSize::new(w, h));
+    }
+
+    let weak_close = main_window.as_weak();
+    let state_close = Rc::clone(&state);
+    let base_close = app_base.clone();
+    main_window.window().on_close_requested(move || {
+        if let Some(window) = weak_close.upgrade() {
+            persist_main_window_geometry(window.window(), &state_close, &base_close);
+            window.set_status_text(
+                i18n::tr("Window hidden to tray. Use tray icon or hotkey to reopen.").into(),
+            );
+        }
+        CloseRequestResponse::HideWindow
+    });
+
+    // Debounced save when the user resizes the main window (Slint `changed width/height`).
+    let resize_save_enabled = Rc::new(Cell::new(false));
+    let resize_geometry_gate_timer = Rc::new(Timer::default());
+    {
+        let en = Rc::clone(&resize_save_enabled);
+        resize_geometry_gate_timer.start(
+            TimerMode::SingleShot,
+            Duration::from_millis(900),
+            move || {
+                en.set(true);
+            },
+        );
+    }
+    let resize_geometry_save_timer: Rc<Timer> = Rc::new(Timer::default());
+    let weak_geom = main_window.as_weak();
+    let state_geom = Rc::clone(&state);
+    let base_geom = app_base.clone();
+    let enabled_geom = Rc::clone(&resize_save_enabled);
+    let t_geom = Rc::clone(&resize_geometry_save_timer);
+    main_window.on_main_window_geometry_changed(move || {
+        if !enabled_geom.get() {
+            return;
+        }
+        let weak2 = weak_geom.clone();
+        let st = Rc::clone(&state_geom);
+        let b = base_geom.clone();
+        t_geom.start(
+            TimerMode::SingleShot,
+            Duration::from_millis(450),
+            move || {
+                if let Some(w) = weak2.upgrade() {
+                    persist_main_window_geometry(w.window(), &st, &b);
+                }
+            },
+        );
+    });
 
     // ---- SnippetPopup callbacks (need state) ----
     {
@@ -2764,23 +2791,24 @@ fn main() -> Result<()> {
 
     main_window.set_status_text(
         i18n::tr_format(
-            "Loaded {0} | Edition: {1} | Team: {2} | Databases: {3} | DeepL: {4} | FA glyphs: {5}",
+            "Loaded {0} | Edition: {1} | Team: {2} | Databases: {3} | DeepL: {4}",
             &[
                 &config::config_path(&app_base).display(),
                 &format!("{:?}", edition),
                 &format!("{:?}", team_pack.source),
                 &state.borrow().db_registry.database_names().len(),
                 &translation_summary,
-                &icon_count,
             ],
         )
         .into(),
     );
     main_window.set_hotkey_text(cfg.settings.hotkey.clone().into());
     main_window.set_date_format_text(cfg.settings.default_date_format.clone().into());
+    main_window.set_date_format_preview_text(
+        format_date_preview(&cfg.settings.default_date_format).into(),
+    );
     main_window
-        .set_date_format_preview_text(format_date_preview(&cfg.settings.default_date_format).into());
-    main_window.set_default_injection_index(default_injection_index(cfg.settings.default_injection));
+        .set_default_injection_index(default_injection_index(cfg.settings.default_injection));
     main_window.set_theme_index(theme_index(cfg.settings.theme));
     main_window.set_available_languages(available_languages_model());
     main_window.set_language_index(language_index_from_code(&cfg.settings.language));
@@ -2851,24 +2879,25 @@ fn main() -> Result<()> {
     if let Some(manager) = hotkey_manager.as_mut() {
         let skipped = manager.install(desired_hotkey_bindings(&cfg, &team_pack.tree));
         if !skipped.is_empty() {
-            main_window
-                .set_status_text(
-                    i18n::tr_format(
-                        "Hotkey registration warnings: {0}",
-                        &[&format!("{:?}", skipped)],
-                    )
-                    .into(),
-                );
+            main_window.set_status_text(
+                i18n::tr_format(
+                    "Hotkey registration warnings: {0}",
+                    &[&format!("{:?}", skipped)],
+                )
+                .into(),
+            );
         }
     } else {
-        main_window
-            .set_status_text(i18n::tr("Hotkey manager unavailable - popup can be opened via button").into());
+        main_window.set_status_text(
+            i18n::tr("Hotkey manager unavailable - popup can be opened via button").into(),
+        );
     }
     let hotkeys = Rc::new(RefCell::new(hotkey_manager));
     let tray = Rc::new(RefCell::new(TrayRuntime::new(&app_base, edition)));
     if tray.borrow().is_none() {
-        main_window
-            .set_status_text(i18n::tr("Tray icon unavailable; using in-window controls as fallback").into());
+        main_window.set_status_text(
+            i18n::tr("Tray icon unavailable; using in-window controls as fallback").into(),
+        );
     } else if let Some(runtime) = tray.borrow().as_ref() {
         runtime.set_paused(false);
         if should_start_hidden {
@@ -3004,8 +3033,7 @@ fn main() -> Result<()> {
                                         "main hotkey",
                                     );
                                 } else if let Some(folder_id) = binding.strip_prefix("team:") {
-                                    if let Some(folder) =
-                                        top_level_folder(&st.team_tree, folder_id)
+                                    if let Some(folder) = top_level_folder(&st.team_tree, folder_id)
                                     {
                                         let source = vec![Node::Folder(folder)];
                                         open_popup_for_nodes(
@@ -3152,26 +3180,30 @@ fn main() -> Result<()> {
             let state_inner = Rc::clone(&state_req);
             let base_inner = base_req.clone();
             let pending_inner = Rc::clone(&pending_req);
-            timer_req.start(TimerMode::SingleShot, Duration::from_millis(150), move || {
-                pending_inner.set(false);
-                let mut st = state_inner.borrow_mut();
-                st.cfg.tree_team = st.team_tree.clone();
-                let result = config::save(&base_inner, &st.cfg);
-                if let Some(window) = weak_inner.upgrade() {
-                    match result {
-                        Ok(()) => {
-                            window.set_save_state_kind(2);
-                            window.set_save_status_text(SharedString::from("Auto-saved"));
-                        }
-                        Err(err) => {
-                            window.set_save_state_kind(0);
-                            window.set_save_status_text(
-                                SharedString::from(format!("Auto-save failed: {err}")),
-                            );
+            timer_req.start(
+                TimerMode::SingleShot,
+                Duration::from_millis(150),
+                move || {
+                    pending_inner.set(false);
+                    let mut st = state_inner.borrow_mut();
+                    st.cfg.tree_team = st.team_tree.clone();
+                    let result = config::save(&base_inner, &st.cfg);
+                    if let Some(window) = weak_inner.upgrade() {
+                        match result {
+                            Ok(()) => {
+                                window.set_save_state_kind(2);
+                                window.set_save_status_text(SharedString::from("Auto-saved"));
+                            }
+                            Err(err) => {
+                                window.set_save_state_kind(0);
+                                window.set_save_status_text(SharedString::from(format!(
+                                    "Auto-save failed: {err}"
+                                )));
+                            }
                         }
                     }
-                }
-            });
+                },
+            );
         });
     }
 
@@ -3265,10 +3297,7 @@ fn main() -> Result<()> {
         if let Some(window) = weak_toggle_team.upgrade() {
             let mut st = state_toggle_team.borrow_mut();
             let idx = usize::try_from(index).unwrap_or(usize::MAX);
-            let prev_selected_path = st
-                .selected_team
-                .and_then(|i| st.team_paths.get(i))
-                .cloned();
+            let prev_selected_path = st.selected_team.and_then(|i| st.team_paths.get(i)).cloned();
             let path = match st.team_paths.get(idx) {
                 Some(p) => p.clone(),
                 None => return,
@@ -3440,7 +3469,8 @@ fn main() -> Result<()> {
             return;
         };
         let Some(token) = build_translation_pair_token(source_idx, target_idx) else {
-            window.set_status_text(i18n::tr("Translation picker: invalid language selection").into());
+            window
+                .set_status_text(i18n::tr("Translation picker: invalid language selection").into());
             return;
         };
         if target.as_str() == "team" {
@@ -3457,7 +3487,9 @@ fn main() -> Result<()> {
         if let Some(window) = weak_add_team_folder.upgrade() {
             let mut st = state_add_team_folder.borrow_mut();
             if st.edition != Edition::Admin {
-                window.set_status_text(i18n::tr("Team tree editing is only available in admin mode").into());
+                window.set_status_text(
+                    i18n::tr("Team tree editing is only available in admin mode").into(),
+                );
                 return;
             }
             let selected_path = st
@@ -3468,7 +3500,8 @@ fn main() -> Result<()> {
                 &mut st.team_tree,
                 selected_path.as_deref(),
                 Node::Folder(default_folder()),
-            );            refresh_team_editor(&window, &mut st);
+            );
+            refresh_team_editor(&window, &mut st);
             let hotkey_warnings = install_hotkeys(&hotkeys_add_team_folder, &st.cfg, &st.team_tree)
                 .filter(|w| !w.is_empty());
             if let Some(warnings) = hotkey_warnings {
@@ -3492,7 +3525,9 @@ fn main() -> Result<()> {
         if let Some(window) = weak_add_team_snippet.upgrade() {
             let mut st = state_add_team_snippet.borrow_mut();
             if st.edition != Edition::Admin {
-                window.set_status_text(i18n::tr("Team tree editing is only available in admin mode").into());
+                window.set_status_text(
+                    i18n::tr("Team tree editing is only available in admin mode").into(),
+                );
                 return;
             }
             let selected_path = st
@@ -3503,7 +3538,8 @@ fn main() -> Result<()> {
                 &mut st.team_tree,
                 selected_path.as_deref(),
                 Node::Snippet(default_snippet()),
-            );            refresh_team_editor(&window, &mut st);
+            );
+            refresh_team_editor(&window, &mut st);
             let hotkey_warnings =
                 install_hotkeys(&hotkeys_add_team_snippet, &st.cfg, &st.team_tree)
                     .filter(|w| !w.is_empty());
@@ -3527,7 +3563,9 @@ fn main() -> Result<()> {
         if let Some(window) = weak_rename_team.upgrade() {
             let mut st = state_rename_team.borrow_mut();
             if st.edition != Edition::Admin {
-                window.set_status_text(i18n::tr("Team tree editing is only available in admin mode").into());
+                window.set_status_text(
+                    i18n::tr("Team tree editing is only available in admin mode").into(),
+                );
                 return;
             }
             let Some(path) = st
@@ -3547,7 +3585,8 @@ fn main() -> Result<()> {
                 match node {
                     Node::Folder(folder) => folder.name = new_name.to_string(),
                     Node::Snippet(snippet) => snippet.name = new_name.to_string(),
-                }                refresh_team_editor(&window, &mut st);
+                }
+                refresh_team_editor(&window, &mut st);
                 window.set_status_text(i18n::tr("Renamed selected team node").into());
             }
         }
@@ -3559,7 +3598,9 @@ fn main() -> Result<()> {
         if let Some(window) = weak_update_team_text.upgrade() {
             let mut st = state_update_team_text.borrow_mut();
             if st.edition != Edition::Admin {
-                window.set_status_text(i18n::tr("Team tree editing is only available in admin mode").into());
+                window.set_status_text(
+                    i18n::tr("Team tree editing is only available in admin mode").into(),
+                );
                 return;
             }
             let Some(path) = st
@@ -3600,7 +3641,8 @@ fn main() -> Result<()> {
                 selected_path.as_deref(),
                 Node::Folder(default_folder()),
             );
-            refresh_personal_editor(&window, &mut st);            let hotkey_warnings = install_hotkeys(&hotkeys_add_folder, &st.cfg, &st.team_tree)
+            refresh_personal_editor(&window, &mut st);
+            let hotkey_warnings = install_hotkeys(&hotkeys_add_folder, &st.cfg, &st.team_tree)
                 .filter(|w| !w.is_empty());
             if let Some(warnings) = hotkey_warnings {
                 window.set_status_text(
@@ -3631,7 +3673,8 @@ fn main() -> Result<()> {
                 selected_path.as_deref(),
                 Node::Snippet(default_snippet()),
             );
-            refresh_personal_editor(&window, &mut st);            let hotkey_warnings = install_hotkeys(&hotkeys_add_snippet, &st.cfg, &st.team_tree)
+            refresh_personal_editor(&window, &mut st);
+            let hotkey_warnings = install_hotkeys(&hotkeys_add_snippet, &st.cfg, &st.team_tree)
                 .filter(|w| !w.is_empty());
             if let Some(warnings) = hotkey_warnings {
                 window.set_status_text(
@@ -3670,7 +3713,8 @@ fn main() -> Result<()> {
                     Node::Folder(folder) => folder.name = new_name.to_string(),
                     Node::Snippet(snippet) => snippet.name = new_name.to_string(),
                 }
-                refresh_personal_editor(&window, &mut st);                window.set_status_text(i18n::tr("Renamed selected personal node").into());
+                refresh_personal_editor(&window, &mut st);
+                window.set_status_text(i18n::tr("Renamed selected personal node").into());
             }
         }
     });
@@ -3696,7 +3740,9 @@ fn main() -> Result<()> {
                         window.set_status_text(i18n::tr("Updated snippet text").into());
                     }
                     Node::Folder(_) => {
-                        window.set_status_text(i18n::tr("Selected node is a folder, not a snippet").into());
+                        window.set_status_text(
+                            i18n::tr("Selected node is a folder, not a snippet").into(),
+                        );
                     }
                 }
             }
@@ -3738,7 +3784,9 @@ fn main() -> Result<()> {
                         }
                     }
                     Node::Snippet(_) => {
-                        window.set_status_text(i18n::tr("Shortcuts can only be assigned to folders").into());
+                        window.set_status_text(
+                            i18n::tr("Shortcuts can only be assigned to folders").into(),
+                        );
                     }
                 }
             }
@@ -3852,8 +3900,9 @@ fn main() -> Result<()> {
                         window.set_status_text(i18n::tr("Updated snippet injection mode").into());
                     }
                     Node::Folder(_) => {
-                        window
-                            .set_status_text(i18n::tr("Injection mode can only be set on snippets").into());
+                        window.set_status_text(
+                            i18n::tr("Injection mode can only be set on snippets").into(),
+                        );
                     }
                 }
             }
@@ -3878,11 +3927,13 @@ fn main() -> Result<()> {
                     Node::Snippet(snippet) => {
                         snippet.prompt_untranslated_before_paste = prompt;
                         refresh_personal_editor(&window, &mut st);
-                        window.set_status_text(i18n::tr("Updated untranslated preview prompt flag").into());
+                        window.set_status_text(
+                            i18n::tr("Updated untranslated preview prompt flag").into(),
+                        );
                     }
-                    Node::Folder(_) => {
-                        window.set_status_text(i18n::tr("Prompt flag can only be set on snippets").into())
-                    }
+                    Node::Folder(_) => window.set_status_text(
+                        i18n::tr("Prompt flag can only be set on snippets").into(),
+                    ),
                 }
             }
         }
@@ -3913,9 +3964,7 @@ fn main() -> Result<()> {
                 let folder_id = folder.id.clone();
                 let normalized = normalize_hotkey(&shortcut);
                 if st.edition == Edition::Admin {
-                    if let Some(Node::Folder(folder_mut)) =
-                        get_node_mut(&mut st.team_tree, &path)
-                    {
+                    if let Some(Node::Folder(folder_mut)) = get_node_mut(&mut st.team_tree, &path) {
                         folder_mut.shortcut = normalized;
                     }
                 } else {
@@ -3966,24 +4015,22 @@ fn main() -> Result<()> {
                         Ok(v) => v,
                         Err(err) => {
                             window.set_status_text(
-                                i18n::tr_format(
-                                    "Unable to access clipboard: {0}",
-                                    &[&err],
-                                )
-                                .into(),
+                                i18n::tr_format("Unable to access clipboard: {0}", &[&err]).into(),
                             );
                             return;
                         }
                     };
                     match clipboard.set_text(text) {
-                        Ok(()) => window.set_status_text(i18n::tr("Copied team snippet text").into()),
+                        Ok(()) => {
+                            window.set_status_text(i18n::tr("Copied team snippet text").into())
+                        }
                         Err(err) => window
                             .set_status_text(i18n::tr_format("Copy failed: {0}", &[&err]).into()),
                     }
                 }
-                None => {
-                    window.set_status_text(i18n::tr("Select a team snippet first to copy its text").into())
-                }
+                None => window.set_status_text(
+                    i18n::tr("Select a team snippet first to copy its text").into(),
+                ),
             }
         }
     });
@@ -3995,7 +4042,9 @@ fn main() -> Result<()> {
         if let Some(window) = weak_delete_team.upgrade() {
             let mut st = state_delete_team.borrow_mut();
             if st.edition != Edition::Admin {
-                window.set_status_text(i18n::tr("Team tree editing is only available in admin mode").into());
+                window.set_status_text(
+                    i18n::tr("Team tree editing is only available in admin mode").into(),
+                );
                 return;
             }
             let Some(path) = st
@@ -4007,7 +4056,8 @@ fn main() -> Result<()> {
                 return;
             };
             if remove_node_by_path(&mut st.team_tree, &path) {
-                st.selected_team = None;                refresh_team_editor(&window, &mut st);
+                st.selected_team = None;
+                refresh_team_editor(&window, &mut st);
                 let hotkey_warnings = install_hotkeys(&hotkeys_delete_team, &st.cfg, &st.team_tree)
                     .filter(|w| !w.is_empty());
                 if let Some(warnings) = hotkey_warnings {
@@ -4148,8 +4198,7 @@ fn main() -> Result<()> {
         };
         // Was the *currently selected* node the one we're dragging? If so
         // we want to keep it selected after the move.
-        let was_selected_drag =
-            st.selected_personal == Some(from_idx);
+        let was_selected_drag = st.selected_personal == Some(from_idx);
         let target_is_folder = matches!(
             get_node_ref(&st.cfg.tree_personal, &target_path),
             Some(Node::Folder(_))
@@ -4164,10 +4213,14 @@ fn main() -> Result<()> {
             window.set_status_text(i18n::tr("Move failed").into());
             return;
         }
-        st.selected_personal = if was_selected_drag { None } else { st.selected_personal };
-        refresh_personal_editor(&window, &mut st);        let hotkey_warnings =
-            install_hotkeys(&hotkeys_move_personal, &st.cfg, &st.team_tree)
-                .filter(|w| !w.is_empty());
+        st.selected_personal = if was_selected_drag {
+            None
+        } else {
+            st.selected_personal
+        };
+        refresh_personal_editor(&window, &mut st);
+        let hotkey_warnings = install_hotkeys(&hotkeys_move_personal, &st.cfg, &st.team_tree)
+            .filter(|w| !w.is_empty());
         if let Some(warnings) = hotkey_warnings {
             window.set_status_text(
                 i18n::tr_format(
@@ -4194,7 +4247,9 @@ fn main() -> Result<()> {
             // invocation (programmatic, future code) must still be a
             // no-op so users can never reorder the team tree locally
             // and accidentally drift from the share.
-            window.set_status_text(i18n::tr("Team tree editing is only available in admin mode").into());
+            window.set_status_text(
+                i18n::tr("Team tree editing is only available in admin mode").into(),
+            );
             return;
         }
         let from_idx = from_idx as usize;
@@ -4243,7 +4298,8 @@ fn main() -> Result<()> {
             };
             if remove_node_by_path(&mut st.cfg.tree_personal, &path) {
                 st.selected_personal = None;
-                refresh_personal_editor(&window, &mut st);                let hotkey_warnings = install_hotkeys(&hotkeys_delete, &st.cfg, &st.team_tree)
+                refresh_personal_editor(&window, &mut st);
+                let hotkey_warnings = install_hotkeys(&hotkeys_delete, &st.cfg, &st.team_tree)
                     .filter(|w| !w.is_empty());
                 if let Some(warnings) = hotkey_warnings {
                     window.set_status_text(
@@ -4436,8 +4492,7 @@ fn main() -> Result<()> {
                 .filter(|p| !p.is_empty())
                 .map(ToOwned::to_owned)
                 .collect::<Vec<_>>();
-            st.cfg.settings.accent_color =
-                accent_color_option_from_picker_hex(accent_hex.as_str());
+            st.cfg.settings.accent_color = accent_color_option_from_picker_hex(accent_hex.as_str());
             let refreshed_pack = if st.edition == Edition::User {
                 team_pack::read_pack_sync(&st.cfg.settings.team_share_path, &reload_base_apply)
             } else {
@@ -4522,7 +4577,9 @@ fn main() -> Result<()> {
                         .into(),
                     );
                 } else {
-                    window.set_status_text(i18n::tr("Applied settings and refreshed runtime state").into());
+                    window.set_status_text(
+                        i18n::tr("Applied settings and refreshed runtime state").into(),
+                    );
                 }
             }
             let _ = config::save(&reload_base_apply, &st.cfg);
@@ -4913,7 +4970,13 @@ fn main() -> Result<()> {
                 .chain(st.team_tree.iter())
                 .cloned()
                 .collect::<Vec<_>>();
-            open_popup_for_nodes(&window, &popup_for_open, &mut st, &all_nodes, "in-app trigger");
+            open_popup_for_nodes(
+                &window,
+                &popup_for_open,
+                &mut st,
+                &all_nodes,
+                "in-app trigger",
+            );
         }
     });
 
@@ -5247,17 +5310,29 @@ mod tests {
             "ctrl+f1"
         );
         // Slint Key.Space = " "
-        assert_eq!(format_hotkey_event(" ", true, true, false, false), "ctrl+alt+space");
+        assert_eq!(
+            format_hotkey_event(" ", true, true, false, false),
+            "ctrl+alt+space"
+        );
         // Slint Key.Escape = U+001B — treated as "esc"
-        assert_eq!(format_hotkey_event("\u{001b}", false, false, false, false), "esc");
+        assert_eq!(
+            format_hotkey_event("\u{001b}", false, false, false, false),
+            "esc"
+        );
         // Slint Key.UpArrow = U+F700
-        assert_eq!(format_hotkey_event("\u{F700}", false, false, false, false), "up");
+        assert_eq!(
+            format_hotkey_event("\u{F700}", false, false, false, false),
+            "up"
+        );
     }
 
     #[test]
     fn format_hotkey_unmappable_is_empty() {
         assert_eq!(format_hotkey_event("", true, true, false, false), "");
-        assert_eq!(format_hotkey_event("\u{ABCD}", true, false, false, false), "");
+        assert_eq!(
+            format_hotkey_event("\u{ABCD}", true, false, false, false),
+            ""
+        );
     }
 
     #[test]
@@ -5373,8 +5448,14 @@ mod tests {
 
     #[test]
     fn build_token_custom_key_normalises() {
-        assert_eq!(build_token("custom_key", "ctrl+shift+a").unwrap(), "{CTRL+SHIFT+A}");
-        assert_eq!(build_token("custom_key", "Ctrl+Alt+F4").unwrap(), "{CTRL+ALT+F4}");
+        assert_eq!(
+            build_token("custom_key", "ctrl+shift+a").unwrap(),
+            "{CTRL+SHIFT+A}"
+        );
+        assert_eq!(
+            build_token("custom_key", "Ctrl+Alt+F4").unwrap(),
+            "{CTRL+ALT+F4}"
+        );
         // Stray plus signs and whitespace are squashed.
         assert_eq!(
             build_token("custom_key", " ctrl + + alt + space ").unwrap(),

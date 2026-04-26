@@ -1,61 +1,61 @@
-# Poltergeist Rust Port
+# Poltergeist (Rust)
 
-Windows-first Rust port of Poltergeist using Slint for UI.
+Platform: Windows
+Rust 1.77+
+UI: Slint
+Build: Cargo
+i18n: EN - DE - ES - FR
+Made with Cursor
 
-## Prerequisites
+A portable Windows snippet manager. Press a global hotkey, pick a snippet
+from a nested popup at your mouse cursor, and watch it get typed or pasted
+into whichever field had focus.
 
-- Windows 10/11
-- Rust toolchain (`rustup`, `cargo`) with Rust 1.77+
-  Check with:
+Built as a spiritual successor to GhostWriter and an alternative to PhraseExpress.
 
-```powershell
-rustc --version
-cargo --version
-```
+> **New here?** The full syntax reference (tokens, operators, filters, and
+> worked examples) lives in **[TUTORIAL.md](./TUTORIAL.md)**.
+> This README covers build/run, packaging, editions, team share modes, and troubleshooting.
 
-- (If build fails on linker tools) install **Visual Studio Build Tools** with the C++ desktop workload.
+## Features
 
-## Project Layout
+- **Global hotkey** (default `Ctrl+Alt+Space`) opens a nested popup at the cursor.
+- **Snippets and folders** with unlimited nesting. Drag-and-drop to reorder and re-nest.
+- **Four injection modes** per snippet:
+  - `clipboard (CTRL+V)` - backup / Ctrl+V / restore.
+  - `clipboard (Shift+INS)` - same, using Shift+Insert for terminal surfaces.
+  - `typing (Key Events)` - real key events.
+  - `typing (Web Terminal)` - Win32 `SendInput` path using VK + scan codes for keycode-sensitive web terminals.
+- **Rich token language** - dates, clipboard, waits, named keys, key combos, DeepL translation, context variables, database lookups, snippet includes, and `{IF}/{ELSIF}/{ELSE}/{END}` conditionals.
+- **Team snippets over share or HTTP(S)** - Team tab can read from UNC/local folders or HTTP(S) endpoints; cache fallback is automatic when remote is unavailable.
+- **Per-folder hotkeys** - assign a hotkey to any top-level folder for direct submenu entry.
+- **Context-aware filtering** - regex capture groups become variables for snippet/folder `Show when...` rules.
+- **CSV/XLSX lookups** - use `{DATABASE=...}` against team databases.
+- **Portable runtime** - config and cache live next to the executable; no installer or registry dependency.
+- **Localized UI** - English, German, Spanish, and French.
 
-- Workspace root: `D:\Development\Poltergeist-Rust`
-- Main app crate (desktop executable): `crates/poltergeist-app`
-- Shared runtime/contracts: `crates/poltergeist-core`
-- IO/config/team-share integration: `crates/poltergeist-io`
-- Windows platform runtime: `crates/poltergeist-platform-win`
+## Workspace layout
 
-## First Build (Debug)
+- `crates/poltergeist-app` - desktop UI app crate (package `poltergeist-app`, binary `poltergeist`).
+- `crates/poltergeist-core` - token engine, models, match/filter logic.
+- `crates/poltergeist-io` - config, team-pack sync, DeepL and database IO.
+- `crates/poltergeist-platform-win` - Windows integrations (hotkeys, focus, injection, single-instance helpers).
 
-From the workspace root:
-
-```powershell
-cargo build -p poltergeist-app
-```
-
-Debug executable output:
-
-- `target\debug\poltergeist-app.exe`
-
-## Run The App (Development)
-
-From the workspace root:
-
-```powershell
-cargo run -p poltergeist-app
-```
-
-## Release Build
-
-```powershell
-cargo build -p poltergeist-app --release
-```
-
-Release executable output:
-
-- `target\release\poltergeist-app.exe`
-
-## Useful Validation Commands
+## Running from source
 
 From workspace root:
+
+```powershell
+cargo run -p poltergeist-app --bin poltergeist
+```
+
+Requirements:
+
+- Windows 10/11
+- Rust toolchain (`rust-version = 1.77`)
+- Visual Studio Build Tools (C++ workload), if linker tools are missing
+
+Contributor checks:
 
 ```powershell
 cargo fmt --all
@@ -64,39 +64,72 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-## Configuration And Runtime Files
+## Building portable executables
 
-The app uses the **executable directory** as its runtime base folder.
+User build:
 
-- Loads config from `poltergeist.json` (or falls back to `poltergeist-defaults.json`)
-- Writes/saves config to `poltergeist.json`
-- Uses team cache folder `team_cache\`
+```powershell
+cargo build -p poltergeist-app --release
+```
 
-When running via `cargo run`, the base folder is typically under `target\debug\`, so config/cache files will be created there.
+Output:
 
-## Assets
+- `target/release/poltergeist.exe`
 
-Keep runtime assets next to the executable in an `assets\` folder:
+Fixed admin build:
 
-- `assets\AppIcon.ico`
-- `assets\AppIconAdmin.ico`
-- Font Awesome files (if configured)
-- `assets\Icon to Font Substitution.txt` (if used)
+```powershell
+cargo build -p poltergeist-app --release --features admin-edition
+```
 
-The app has fallback probes for icon/substitution files, but `assets\` is the preferred location.
+Output binary is still `target/release/poltergeist.exe`, but the feature pins
+the runtime edition to Admin.
 
-## Admin vs User Edition
+## User and admin editions
 
-Edition is detected in this order:
+For the default binary (`poltergeist.exe`), edition is resolved in this order:
 
-1. `POLTERGEIST_EDITION=admin|user` environment variable
-2. Presence of `_admin.flag` file in the executable directory
-3. Default: user edition
+1. `POLTERGEIST_EDITION=admin|user`
+2. `_admin.flag` file beside the executable
+3. Fallback: user edition
 
-## Quick Start (First Time)
+When built with `--features admin-edition`, runtime ignores env/flag and is always Admin.
 
-1. Open PowerShell in `D:\Development\Poltergeist-Rust`
-2. Run `cargo run -p poltergeist-app`
-3. If needed, place assets in `assets\`
-4. Close/relaunch after changing edition mode (`POLTERGEIST_EDITION` or `_admin.flag`)
+## Nightly CI artifacts
 
+The CI pipeline publishes two Windows zip artifacts:
+
+- `poltergeist-nightly-user-windows.zip` (contains `poltergeist.exe`)
+- `poltergeist-nightly-admin-windows.zip` (contains `poltergeist-admin.exe`)
+
+When present, `assets/` is packaged alongside the executable.
+
+## Team share modes
+
+`Options > Team share > Share path` supports:
+
+- UNC/local folders (examples: `\\server\share\poltergeist`, `T:\Poltergeist`)
+- HTTP(S) base URLs where these files are downloadable:
+  - `{base}/manifest.json`
+  - `{base}/team.poltergeist.json`
+  - optional `{base}/databases/<name>` files listed in the manifest
+
+Publishing from the app is supported for folder/UNC shares; HTTP(S) is read-only.
+
+## Config and runtime files
+
+Runtime data is portable and stored beside the executable:
+
+- `poltergeist.json` - primary config
+- `poltergeist-defaults.json` - optional bootstrap defaults
+- `team_cache/` - cached team pack and database files
+
+## DeepL and TLS
+
+Network requests use `reqwest` with `rustls-tls-native-roots`, so the OS trust
+store is included (useful for many corporate TLS interception setups).
+
+## Tutorial
+
+See **[TUTORIAL.md](./TUTORIAL-rust.md)** for token syntax, conditionals,  
+filters, and full examples.

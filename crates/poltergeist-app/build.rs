@@ -7,7 +7,9 @@ fn walkdir(root: &Path, ext: &str) -> Vec<PathBuf> {
     let mut out = Vec::new();
     let mut stack = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
-        let Ok(read) = std::fs::read_dir(&dir) else { continue };
+        let Ok(read) = std::fs::read_dir(&dir) else {
+            continue;
+        };
         for entry in read.flatten() {
             let path = entry.path();
             if path.is_dir() {
@@ -54,21 +56,23 @@ fn main() {
     }
 
     // Embed the Windows app icon resource so the .exe carries the correct
-    // shell/taskbar icon (used by the user / admin builds alike).
+    // shell/taskbar icon. User builds prefer `AppIcon.ico`; `--features
+    // admin-edition` builds prefer `AppIconAdmin.ico`.
     #[cfg(target_os = "windows")]
     {
-        let icon_candidates = [
-            manifest_dir
-                .join("..")
-                .join("..")
-                .join("assets")
-                .join("AppIcon.ico"),
-            manifest_dir
-                .join("..")
-                .join("..")
-                .join("assets")
-                .join("AppIconAdmin.ico"),
-        ];
+        let assets_dir = manifest_dir.join("..").join("..").join("assets");
+        let icon_candidates: [PathBuf; 2] =
+            if std::env::var_os("CARGO_FEATURE_ADMIN_EDITION").is_some() {
+                [
+                    assets_dir.join("AppIconAdmin.ico"),
+                    assets_dir.join("AppIcon.ico"),
+                ]
+            } else {
+                [
+                    assets_dir.join("AppIcon.ico"),
+                    assets_dir.join("AppIconAdmin.ico"),
+                ]
+            };
         for candidate in icon_candidates {
             if candidate.exists() {
                 println!("cargo:rerun-if-changed={}", candidate.display());

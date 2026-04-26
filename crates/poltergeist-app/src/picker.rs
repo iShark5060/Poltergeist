@@ -488,8 +488,7 @@ mod tests {
         assert_eq!(session.roots[0].checked, PickerCheck::Partial);
         toggle_check(&mut session.roots, &[0]);
         assert_eq!(session.roots[0].checked, PickerCheck::Checked);
-        assert!(session
-            .roots[0]
+        assert!(session.roots[0]
             .children
             .iter()
             .all(|c| c.checked == PickerCheck::Checked));
@@ -500,7 +499,11 @@ mod tests {
         let nodes = vec![
             folder(
                 "F1",
-                vec![snippet("a"), snippet("b"), folder("Sub", vec![snippet("c")])],
+                vec![
+                    snippet("a"),
+                    snippet("b"),
+                    folder("Sub", vec![snippet("c")]),
+                ],
             ),
             snippet("d"),
         ];

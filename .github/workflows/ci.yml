@@ -1,14 +1,18 @@
 name: Poltergeist PR Checks
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: read
 
 on:
   push:
     branches: [main]
     paths:
-      - 'Poltergeist-Rust/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'crates/**'
+      - 'assets/**'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 concurrency:
@@ -36,12 +40,100 @@ jobs:
       - name: run tests
         run: cargo test --workspace
 
+      - name: Ensure admin-edition binary compiles
+        run: cargo check -p poltergeist-app --features admin-edition
+
   build:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 18
 
     needs: validate
 
     steps:
-      - name: build release
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build workspace (user edition binary)
         run: cargo build --workspace --release
+
+      - name: Package user edition zip
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force staging-user | Out-Null
+          Copy-Item target/release/poltergeist.exe staging-user/poltergeist.exe
+          if (Test-Path assets) {
+            Copy-Item -Recurse assets staging-user/assets
+          }
+          Compress-Archive -Path staging-user/* -DestinationPath poltergeist-nightly-user-windows.zip -Force
+
+      - name: Build admin edition binary
+        run: cargo build -p poltergeist-app --release --features admin-edition
+
+      - name: Package admin edition zip
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force staging-admin | Out-Null
+          Copy-Item target/release/poltergeist.exe staging-admin/poltergeist-admin.exe
+          if (Test-Path assets) {
+            Copy-Item -Recurse assets staging-admin/assets
+          }
+          Compress-Archive -Path staging-admin/* -DestinationPath poltergeist-nightly-admin-windows.zip -Force
+
+      - name: Upload nightly zips
+        uses: actions/upload-artifact@v7
+        with:
+          name: poltergeist-nightly-windows-zips
+          path: |
+            poltergeist-nightly-user-windows.zip
+            poltergeist-nightly-admin-windows.zip
+          if-no-files-found: error
+
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: poltergeist-nightly-windows-zips
+          path: dist
+
+      - name: Move nightly tag to this commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -fa nightly -m "Nightly build ${{ github.run_number }} (${{ github.sha }})"
+          git push origin nightly --force
+
+      - name: Create or update nightly release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: nightly
+          name: Nightly
+          prerelease: true
+          generate_release_notes: false
+          body: |
+            Automated **nightly** build from commit `${{ github.sha }}`.
+
+            [Workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            **User build:** `poltergeist-nightly-user-windows.zip` — run `poltergeist.exe` (or use `_admin.flag` / `POLTERGEIST_EDITION` with the standard binary).
+
+            **Admin build:** `poltergeist-nightly-admin-windows.zip` — run `poltergeist-admin.exe` (always Admin edition; separate taskbar icon when ICOs are present).
+
+            When present, keep the `assets` folder next to the exe (same layout as a portable install).
+          files: |
+            dist/poltergeist-nightly-user-windows.zip
+            dist/poltergeist-nightly-admin-windows.zip
+          fail_on_unmatched_files: true

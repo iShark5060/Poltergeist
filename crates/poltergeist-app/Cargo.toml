@@ -6,6 +6,16 @@ license.workspace = true
 authors.workspace = true
 rust-version.workspace = true
 
+[[bin]]
+name = "poltergeist"
+path = "src/main.rs"
+
+# `admin-edition`: fixed Admin runtime (ignores `_admin.flag` / `POLTERGEIST_EDITION`).
+# CI builds the default binary for users and `--features admin-edition` for admins.
+[features]
+default = []
+admin-edition = []
+
 [dependencies]
 anyhow.workspace = true
 tracing.workspace = true
