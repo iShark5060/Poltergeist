@@ -47,7 +47,7 @@ pub fn inject(params: InjectParams<'_>) -> anyhow::Result<()> {
     }
 
     match params.mode {
-        InjectionMode::Typing | InjectionMode::TypingCompat => {
+        InjectionMode::Typing => {
             let segments = if params.expanded_override.is_some() {
                 vec![Segment::Text(text)]
             } else {
@@ -61,6 +61,22 @@ pub fn inject(params: InjectParams<'_>) -> anyhow::Result<()> {
                 )
             };
             apply_typing_segments(&segments)?;
+            return Ok(());
+        }
+        InjectionMode::TypingCompat => {
+            let segments = if params.expanded_override.is_some() {
+                vec![Segment::Text(text)]
+            } else {
+                expand_for_typing(
+                    &text,
+                    params.default_date_format,
+                    &original_clipboard,
+                    params.context,
+                    params.databases,
+                    params.snippet_lookup,
+                )
+            };
+            apply_typing_compat_segments(&segments)?;
             return Ok(());
         }
         InjectionMode::Clipboard | InjectionMode::ClipboardShiftInsert => {}
@@ -140,6 +156,17 @@ fn apply_typing_segments(segments: &[Segment]) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn apply_typing_compat_segments(segments: &[Segment]) -> anyhow::Result<()> {
+    for segment in segments {
+        match segment {
+            Segment::Text(text) => send_text_compat(text, 3)?,
+            Segment::Key(key) | Segment::Hotkey(key) => send_hotkey(key)?,
+            Segment::Wait(ms) => thread::sleep(Duration::from_millis(*ms)),
+        }
+    }
+    Ok(())
+}
+
 #[cfg(windows)]
 fn send_text(text: &str) -> anyhow::Result<()> {
     use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -181,8 +208,40 @@ fn send_text(text: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(windows)]
+fn send_text_compat(text: &str, per_char_delay_ms: u64) -> anyhow::Result<()> {
+    let caps_was_on = caps_lock_on();
+    if caps_was_on {
+        send_vk(windows::Win32::UI::Input::KeyboardAndMouse::VK_CAPITAL)?;
+    }
+    for ch in text.chars() {
+        if ch == '\r' {
+            continue;
+        }
+        if ch == '\n' {
+            send_hotkey("enter")?;
+        } else if ch == '\t' {
+            send_hotkey("tab")?;
+        } else if !send_char_via_vk(ch)? {
+            send_text(&ch.to_string())?;
+        }
+        if per_char_delay_ms > 0 {
+            thread::sleep(Duration::from_millis(per_char_delay_ms));
+        }
+    }
+    if caps_was_on {
+        send_vk(windows::Win32::UI::Input::KeyboardAndMouse::VK_CAPITAL)?;
+    }
+    Ok(())
+}
+
 #[cfg(not(windows))]
 fn send_text(_text: &str) -> anyhow::Result<()> {
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn send_text_compat(_text: &str, _per_char_delay_ms: u64) -> anyhow::Result<()> {
     Ok(())
 }
 
@@ -231,6 +290,81 @@ fn vk_for_main_key(key: &str) -> Option<windows::Win32::UI::Input::KeyboardAndMo
         }
         _ => None,
     }
+}
+
+#[cfg(windows)]
+fn send_vk(vk: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY) -> anyhow::Result<()> {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{SendInput, INPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP};
+    let inputs = [
+        key_input(vk, KEYBD_EVENT_FLAGS(0)),
+        key_input(vk, KEYEVENTF_KEYUP),
+    ];
+    unsafe {
+        let _ = SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn caps_lock_on() -> bool {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CAPITAL};
+    unsafe { (GetKeyState(VK_CAPITAL.0 as i32) as i16 & 0x0001) != 0 }
+}
+
+#[cfg(windows)]
+fn send_char_via_vk(ch: char) -> anyhow::Result<bool> {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        MapVirtualKeyW, SendInput, VkKeyScanW, INPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP, MAPVK_VK_TO_VSC,
+        VIRTUAL_KEY, VK_CONTROL, VK_MENU, VK_SHIFT,
+    };
+
+    let mut utf16 = [0u16; 2];
+    let encoded = ch.encode_utf16(&mut utf16);
+    if encoded.len() != 1 {
+        return Ok(false);
+    }
+    let scan_result = unsafe { VkKeyScanW(encoded[0]) };
+    if scan_result == -1 {
+        return Ok(false);
+    }
+    let vk_u8 = (scan_result & 0xFF) as u8;
+    let modifier_state = ((scan_result >> 8) & 0xFF) as u8;
+    if modifier_state == 0xFF {
+        return Ok(false);
+    }
+
+    let needs_shift = (modifier_state & 0x01) != 0;
+    let needs_ctrl = (modifier_state & 0x02) != 0;
+    let needs_alt = (modifier_state & 0x04) != 0;
+    let vk = VIRTUAL_KEY(vk_u8 as u16);
+    let _scan = unsafe { MapVirtualKeyW(vk_u8 as u32, MAPVK_VK_TO_VSC) };
+
+    let mut inputs = Vec::new();
+    if needs_shift {
+        inputs.push(key_input(VK_SHIFT, KEYBD_EVENT_FLAGS(0)));
+    }
+    if needs_ctrl {
+        inputs.push(key_input(VK_CONTROL, KEYBD_EVENT_FLAGS(0)));
+    }
+    if needs_alt {
+        inputs.push(key_input(VK_MENU, KEYBD_EVENT_FLAGS(0)));
+    }
+    inputs.push(key_input(vk, KEYBD_EVENT_FLAGS(0)));
+    inputs.push(key_input(vk, KEYEVENTF_KEYUP));
+    if needs_alt {
+        inputs.push(key_input(VK_MENU, KEYEVENTF_KEYUP));
+    }
+    if needs_ctrl {
+        inputs.push(key_input(VK_CONTROL, KEYEVENTF_KEYUP));
+    }
+    if needs_shift {
+        inputs.push(key_input(VK_SHIFT, KEYEVENTF_KEYUP));
+    }
+
+    unsafe {
+        let _ = SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
+    }
+    Ok(true)
 }
 
 #[cfg(windows)]

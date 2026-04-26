@@ -18,8 +18,8 @@ msgstr "Über Poltergeist"
 msgid "Version {0}"
 msgstr "Version {0}"
 
-msgid "Created by <b>{0}</b><br>Copyright © {1} {0}. All rights reserved."
-msgstr "Erstellt von <b>{0}</b><br>Copyright © {1} {0}. Alle Rechte vorbehalten."
+msgid "Copyright © 2026 Lutz Schwemer Panchez. All rights reserved."
+msgstr "Copyright © 2026 Lutz Schwemer Panchez. Alle Rechte vorbehalten."
 
 msgid "<b>Icon credits</b>"
 msgstr "<b>Icon-Nachweise</b>"
