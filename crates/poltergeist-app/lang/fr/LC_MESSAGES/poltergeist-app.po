@@ -1,0 +1,840 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: poltergeist-app\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: fr\n"
+
+msgid "Poltergeist"
+msgstr "Poltergeist"
+
+msgid "  GitHub: iShark5060"
+msgstr "  GitHub: iShark5060"
+
+msgid "About Poltergeist"
+msgstr "À propos de Poltergeist"
+
+msgid "Version {0}"
+msgstr "Version {0}"
+
+msgid "Created by <b>{0}</b><br>Copyright © {1} {0}. All rights reserved."
+msgstr "Créé par <b>{0}</b><br>Copyright © {1} {0}. Tous droits réservés."
+
+msgid "<b>Icon credits</b>"
+msgstr "<b>Crédits des icônes</b>"
+
+msgid "Application icons created by Pixel perfect - Flaticon<br><a href=\"https://www.flaticon.com/free-icons/info\">https://www.flaticon.com/free-icons/info</a>"
+msgstr "Icônes de l'application créées par Pixel perfect - Flaticon<br><a href=\"https://www.flaticon.com/free-icons/info\">https://www.flaticon.com/free-icons/info</a>"
+
+msgid "Click and press a key combo..."
+msgstr "Cliquez puis appuyez sur une combinaison de touches..."
+
+msgid ""
+"Poltergeist is already running.\n"
+"Look for the icon in the system tray."
+msgstr ""
+"Poltergeist est déjà en cours d'exécution.\n"
+"Recherchez l'icône dans la zone de notification."
+
+msgid "Main"
+msgstr "Principale"
+
+msgid "New Folder"
+msgstr "Nouveau dossier"
+
+msgid "New Snippet"
+msgstr "Nouvel extrait"
+
+msgid "Rename"
+msgstr "Renommer"
+
+msgid "Rename (F2)"
+msgstr "Renommer (F2)"
+
+msgid "Delete"
+msgstr "Supprimer"
+
+msgid "Delete (Del)"
+msgstr "Supprimer (Suppr)"
+
+msgid "Import..."
+msgstr "Importer..."
+
+msgid "Import snippets..."
+msgstr "Importer des extraits..."
+
+msgid "Export..."
+msgstr "Exporter..."
+
+msgid "Export snippets..."
+msgstr "Exporter des extraits..."
+
+msgid "Theme"
+msgstr "Thème"
+
+msgid "Poltergeist [ADMIN]"
+msgstr "Poltergeist [ADMIN]"
+
+msgid "Personal"
+msgstr "Personnel"
+
+msgid "Team"
+msgstr "Équipe"
+
+msgid "Team (read-only)"
+msgstr "Équipe (lecture seule)"
+
+msgid "Publish to team share"
+msgstr "Publier sur le partage d'équipe"
+
+msgid "Publish the current Team tree to the shared drive"
+msgstr "Publier l'arborescence d'équipe actuelle sur le lecteur partagé"
+
+msgid "Assign folder shortcut"
+msgstr "Assigner un raccourci de dossier"
+
+msgid "Global shortcut for '{0}':"
+msgstr "Raccourci global pour « {0} » :"
+
+msgid "Press a key combination (Escape to clear). Team shortcuts take precedence over personal ones, which in turn take precedence over the main popup."
+msgstr "Appuyez sur une combinaison de touches (Échap pour effacer). Les raccourcis d'équipe sont prioritaires sur les raccourcis personnels, eux-mêmes prioritaires sur le menu contextuel principal."
+
+msgid "Clear"
+msgstr "Effacer"
+
+msgid "e.g. \\\\fileserver\\ops\\Poltergeist or T:\\Poltergeist"
+msgstr "p. ex. \\\\serveur\\partage\\Poltergeist ou T:\\Poltergeist"
+
+msgid "Browse..."
+msgstr "Parcourir..."
+
+msgid "Share path:"
+msgstr "Chemin du partage :"
+
+msgid "Status:"
+msgstr "État :"
+
+msgid "Refresh from share"
+msgstr "Actualiser depuis le partage"
+
+msgid "Publish to share..."
+msgstr "Publier sur le partage..."
+
+msgid "The team pack is read from the share on startup and cached locally for offline use."
+msgstr "Le paquet d'équipe est lu depuis le partage au démarrage et mis en cache localement pour un usage hors ligne."
+
+msgid "You are running the admin edition: local edits to the Team tab stay on this machine until you press 'Publish to share...'."
+msgstr "Vous utilisez l'édition administrateur : les modifications locales de l'onglet Équipe restent sur cette machine jusqu'à ce que vous appuyiez sur « Publier sur le partage... »."
+
+msgid "Context extraction"
+msgstr "Extraction du contexte"
+
+msgid "One regex per line, applied in order to the selection / clipboard before the popup opens. Use named groups (?P<name>...) to capture variables that snippets can read via {VAR=name} or filter on via 'Show when...'."
+msgstr "Une expression régulière par ligne, appliquée dans l'ordre à la sélection ou au presse-papiers avant l'ouverture du menu. Utilisez des groupes nommés (?P<name>...) pour capturer des variables que les extraits lisent via {VAR=name} ou filtrent via « Afficher quand... »."
+
+msgid "Pick team share folder"
+msgstr "Sélectionner le dossier de partage d'équipe"
+
+msgid "No share configured."
+msgstr "Aucun partage configuré."
+
+msgid "Reachable (pack v{0})."
+msgstr "Accessible (paquet v{0})."
+
+msgid "Reachable."
+msgstr "Accessible."
+
+msgid "Share unreachable - using cached copy (pack v{0})."
+msgstr "Partage inaccessible - utilisation de la copie en cache (paquet v{0})."
+
+msgid "Share unreachable - using cached copy."
+msgstr "Partage inaccessible - utilisation de la copie en cache."
+
+msgid "Share unreachable and no cache available yet."
+msgstr "Partage inaccessible et aucun cache disponible pour l'instant."
+
+msgid "Not probed yet."
+msgstr "Pas encore vérifié."
+
+msgid "Set a share path first."
+msgstr "Configurez d'abord un chemin de partage."
+
+msgid ""
+"This will replace your local Team tree with the latest version from the share. Any unpublished edits will be lost.\n"
+"\n"
+"Continue?"
+msgstr ""
+"Ceci remplacera votre arborescence d'équipe locale par la dernière version du partage. Toute modification non publiée sera perdue.\n"
+"\n"
+"Continuer ?"
+
+msgid "Refreshing..."
+msgstr "Actualisation..."
+
+msgid "Publish to share"
+msgstr "Publier sur le partage"
+
+msgid ""
+"This will publish the current Team tree to the share. All users will pick it up on their next startup or refresh.\n"
+"\n"
+"Continue?"
+msgstr ""
+"Ceci publiera l'arborescence d'équipe actuelle sur le partage. Tous les utilisateurs la recevront au prochain démarrage ou à la prochaine actualisation.\n"
+"\n"
+"Continuer ?"
+
+msgid "Publish failed"
+msgstr "Échec de la publication"
+
+msgid "Published pack v{0}."
+msgstr "Paquet v{0} publié."
+
+msgid "No team share path is configured. Set one in Options first."
+msgstr "Aucun chemin de partage d'équipe n'est configuré. Configurez-en un dans les Options d'abord."
+
+msgid "Publish the current Team tree to the shared drive? All users will pick up the new version on their next refresh."
+msgstr "Publier l'arborescence d'équipe actuelle sur le lecteur partagé ? Tous les utilisateurs recevront la nouvelle version à leur prochaine actualisation."
+
+msgid "Team pack published"
+msgstr "Paquet d'équipe publié"
+
+msgid "Deployed pack v{0} to the share."
+msgstr "Paquet v{0} déployé sur le partage."
+
+msgid "Options"
+msgstr "Options"
+
+msgid "Options..."
+msgstr "Options..."
+
+msgid "About"
+msgstr "À propos"
+
+msgid "Light"
+msgstr "Clair"
+
+msgid "Dark"
+msgstr "Sombre"
+
+msgid "Theme: {0} ({1}) - click to cycle"
+msgstr "Thème : {0} ({1}) - cliquez pour changer"
+
+msgid "Export snippets"
+msgstr "Exporter les extraits"
+
+msgid "Poltergeist JSON (*.json)"
+msgstr "Poltergeist JSON (*.json)"
+
+msgid "Export failed"
+msgstr "Échec de l'export"
+
+msgid "Import snippets"
+msgstr "Importer des extraits"
+
+msgid "Poltergeist JSON (*.json);;All files (*)"
+msgstr "Poltergeist JSON (*.json);;Tous les fichiers (*)"
+
+msgid "Import failed"
+msgstr "Échec de l'import"
+
+msgid "File does not contain a 'tree' list."
+msgstr "Le fichier ne contient pas de liste « tree »."
+
+msgid "Import"
+msgstr "Importer"
+
+msgid "No snippets found in file."
+msgstr "Aucun extrait trouvé dans le fichier."
+
+msgid ""
+"Import {0} top-level entries.\n"
+"\n"
+"Yes = merge into current tree (as new top-level entries)\n"
+"No  = REPLACE entire tree"
+msgstr ""
+"Importer {0} entrées de premier niveau.\n"
+"\n"
+"Oui = fusionner dans l'arbre actuel (en tant que nouvelles entrées de premier niveau)\n"
+"Non = REMPLACER tout l'arbre"
+
+msgid "There's nothing to export yet."
+msgstr "Il n'y a encore rien à exporter."
+
+msgid "Tick the folders and snippets you want to share. Ticking a folder selects everything inside it, and you can still uncheck individual items afterwards."
+msgstr "Coche les dossiers et extraits que tu veux partager. Cocher un dossier sélectionne tout son contenu ; tu peux ensuite décocher des éléments individuels."
+
+msgid "Tick what you'd like to pull in from this pack. Everything is selected by default; untick anything you want to skip."
+msgstr "Coche ce que tu veux importer de ce paquet. Tout est sélectionné par défaut ; décoche ce que tu souhaites ignorer."
+
+msgid "Select all"
+msgstr "Tout sélectionner"
+
+msgid "Deselect all"
+msgstr "Tout désélectionner"
+
+msgid "{0} folder(s), {1} snippet(s) selected"
+msgstr "{0} dossier(s), {1} extrait(s) sélectionné(s)"
+
+msgid "Poltergeist - Options"
+msgstr "Poltergeist - Options"
+
+msgid "Clipboard paste (Ctrl+V - most apps)"
+msgstr "Coller depuis le presse-papiers (Ctrl+V - la plupart des applis)"
+
+msgid "Clipboard paste (Shift+Insert - ShellInABox / xterm)"
+msgstr "Coller depuis le presse-papiers (Maj+Inser - ShellInABox / xterm)"
+
+msgid "Typing (real Tab/Enter key events)"
+msgstr "Frappe (vrais événements Tab/Entrée)"
+
+msgid "Typing (compat - web terminals / ShellInABox)"
+msgstr "Frappe (compat - terminaux web / ShellInABox)"
+
+msgid "Auto (follow Windows)"
+msgstr "Automatique (suivre Windows)"
+
+msgid "Start Poltergeist with Windows"
+msgstr "Lancer Poltergeist au démarrage de Windows"
+
+msgid "Paste your DeepL Auth Key here"
+msgstr "Collez votre clé d'authentification DeepL ici"
+
+msgid "Show"
+msgstr "Afficher"
+
+msgid "Hide"
+msgstr "Masquer"
+
+msgid "Validate now"
+msgstr "Valider maintenant"
+
+msgid "Activation"
+msgstr "Activation"
+
+msgid "Hotkey:"
+msgstr "Raccourci :"
+
+msgid "Defaults for new snippets"
+msgstr "Valeurs par défaut pour les nouveaux extraits"
+
+msgid "Injection mode:"
+msgstr "Mode d'insertion :"
+
+msgid "Date format ({DATE}):"
+msgstr "Format de date ({DATE}) :"
+
+msgid "Preview:"
+msgstr "Aperçu :"
+
+msgid "Application"
+msgstr "Application"
+
+msgid "Theme:"
+msgstr "Thème :"
+
+msgid "Language:"
+msgstr "Langue :"
+
+msgid "DeepL translation"
+msgstr "Traduction DeepL"
+
+msgid "API key:"
+msgstr "Clé d'API :"
+
+msgid "Translation snippets use the syntax <code>{TRANSLATION=DE}your text{TRANSLATION_END}</code>. Until a valid key is entered the translation option stays hidden."
+msgstr "Les extraits de traduction utilisent la syntaxe <code>{TRANSLATION=DE}votre texte{TRANSLATION_END}</code>. Tant qu'une clé valide n'est pas saisie, l'option de traduction reste masquée."
+
+msgid "Version:"
+msgstr "Version :"
+
+msgid "Config file:"
+msgstr "Fichier de configuration :"
+
+msgid "System default"
+msgstr "Par défaut du système"
+
+msgid "Enter a key and click 'Validate now'."
+msgstr "Saisissez une clé puis cliquez sur « Valider maintenant »."
+
+msgid "Enter a key to validate."
+msgstr "Saisissez une clé à valider."
+
+msgid "Not yet validated"
+msgstr "Pas encore validé"
+
+msgid "(invalid format)"
+msgstr "(format invalide)"
+
+msgid "Validating..."
+msgstr "Validation..."
+
+msgid "No API key entered."
+msgstr "Aucune clé d'API saisie."
+
+msgid "Poltergeist is running"
+msgstr "Poltergeist est actif"
+
+msgid "Activate with {0}. Right-click the tray icon for more."
+msgstr "Activez avec {0}. Clic droit sur l'icône pour plus d'options."
+
+msgid "Translation failed"
+msgstr "Échec de la traduction"
+
+msgid "Language changed"
+msgstr "Langue modifiée"
+
+msgid "The new language will be applied the next time you start Poltergeist."
+msgstr "La nouvelle langue sera appliquée au prochain démarrage de Poltergeist."
+
+msgid "Autostart"
+msgstr "Démarrage auto"
+
+msgid "Save failed"
+msgstr "Échec de l'enregistrement"
+
+msgid "Folder"
+msgstr "Dossier"
+
+msgid "Snippet"
+msgstr "Extrait"
+
+msgid "(no snippets configured)"
+msgstr "(aucun extrait configuré)"
+
+msgid "Snippet name"
+msgstr "Nom de l'extrait"
+
+msgid "Default"
+msgstr "Par défaut"
+
+msgid "Clipboard paste (Ctrl+V)"
+msgstr "Coller depuis le presse-papiers (Ctrl+V)"
+
+msgid "Clipboard paste (Shift+INS)"
+msgstr "Coller depuis le presse-papiers (Maj+Ins)"
+
+msgid "Typing (Key Events)"
+msgstr "Frappe (Événements de touches)"
+
+msgid "Typing (Web Terminal)"
+msgstr "Frappe (Terminal web)"
+
+msgid "Insert Token"
+msgstr "Insérer un jeton"
+
+msgid "Show untranslated preview before pasting"
+msgstr "Afficher l'aperçu non traduit avant le collage"
+
+msgid "Review text before paste"
+msgstr "Vérifier le texte avant le collage"
+
+msgid "Review and edit the untranslated text before it is pasted. Cancel will stop this snippet completely."
+msgstr "Vérifiez et modifiez le texte non traduit avant le collage. Annuler abandonne complètement cet extrait."
+
+msgid "e.g. country = DE; type contains Sto  (empty = always show, 'hide' = never show)"
+msgstr "p. ex. country = DE; type contains Sto  (vide = toujours afficher, 'hide' = ne jamais afficher)"
+
+msgid "Show when:"
+msgstr "Afficher quand :"
+
+msgid ""
+"Filter: only show this snippet in the popup when the context matches.\n"
+"Clauses separated by ';' (all must be true).\n"
+"Operators (all case-insensitive):\n"
+"  =, !=, in, not in, contains, startswith, endswith, matches\n"
+"Variables come from the Context patterns in Options.\n"
+"\n"
+"Suffix any operator with '?' to also show this snippet when the variable is empty / missing - useful when the user forgot to select text (e.g. 'type contains? Sto').\n"
+"\n"
+"Use 'hide' on its own to hide this snippet from the popup entirely - handy for helper snippets meant only for {INCLUDE=...}."
+msgstr ""
+"Filtre : n'afficher cet extrait dans le menu contextuel que si le contexte correspond.\n"
+"Clauses séparées par « ; » (toutes doivent être vraies).\n"
+"Opérateurs (insensibles à la casse) :\n"
+"  =, !=, in, not in, contains, startswith, endswith, matches\n"
+"Les variables proviennent des motifs de contexte dans les Options.\n"
+"\n"
+"Suffixez un opérateur avec « ? » pour afficher aussi cet extrait lorsque la variable est vide ou absente (p. ex. si l'utilisateur n'a pas sélectionné de texte : « type contains? Sto »).\n"
+"\n"
+"Utilisez « hide » seul pour masquer totalement cet extrait du menu : pratique pour les extraits d'aide destinés seulement à {INCLUDE=...}."
+
+msgid "Context variable ({VAR=name})..."
+msgstr "Variable de contexte ({VAR=name})..."
+
+msgid "Database lookup ({DATABASE=...})..."
+msgstr "Recherche en base ({DATABASE=...})..."
+
+msgid "Include another snippet ({INCLUDE=name})..."
+msgstr "Inclure un autre extrait ({INCLUDE=name})..."
+
+msgid "Insert context variable"
+msgstr "Insérer une variable de contexte"
+
+msgid "Variable name (must match a named group in your Context patterns, e.g. country, region, site):"
+msgstr "Nom de la variable (doit correspondre à un groupe nommé dans vos motifs de contexte, p. ex. country, region, site) :"
+
+msgid "Database lookup - file"
+msgstr "Recherche en base – fichier"
+
+msgid "Database file stem (e.g. Sites for Sites.csv):"
+msgstr "Nom de base du fichier (p. ex. Sites pour Sites.csv) :"
+
+msgid "Database lookup - key"
+msgstr "Recherche en base – clé"
+
+msgid "Lookup key. Use $varname to splice context variables (e.g. $region-$site):"
+msgstr "Clé de recherche. Utilisez $varname pour insérer des variables de contexte (p. ex. $region-$site) :"
+
+msgid "Database lookup - column"
+msgstr "Recherche en base – colonne"
+
+msgid "Column name to return (e.g. INET_SOLUTION):"
+msgstr "Nom de la colonne à renvoyer (p. ex. INET_SOLUTION) :"
+
+msgid "Include another snippet"
+msgstr "Inclure un autre extrait"
+
+msgid "Name of the snippet whose body should be inlined here (case-insensitive):"
+msgstr "Nom de l'extrait dont le contenu doit être inséré ici (insensible à la casse) :"
+
+msgid "(read-only)"
+msgstr "(lecture seule)"
+
+msgid "Shortcut: {0}"
+msgstr "Raccourci : {0}"
+
+msgid "Assign shortcut..."
+msgstr "Assigner un raccourci..."
+
+msgid "Edit filter ({0})"
+msgstr "Modifier le filtre ({0})"
+
+msgid "Edit filter..."
+msgstr "Modifier le filtre..."
+
+msgid "Edit folder filter"
+msgstr "Modifier le filtre du dossier"
+
+msgid ""
+"Show this folder in the popup only when:\n"
+"(empty = always show, 'hide' = never show)\n"
+"\n"
+"Clauses separated by ';'. All string comparisons are case-insensitive.\n"
+"Operators: =, !=, in, not in, contains, startswith, endswith, matches\n"
+"Suffix an operator with '?' to also show the folder when the variable is empty (e.g. 'type contains? Sto').\n"
+"\n"
+"Example: country = DE; type contains Sto"
+msgstr ""
+"N'afficher ce dossier dans le menu contextuel que lorsque :\n"
+"(vide = toujours afficher, « hide » = ne jamais afficher)\n"
+"\n"
+"Clauses séparées par « ; ». Toutes les comparaisons de chaînes sont insensibles à la casse.\n"
+"Opérateurs : =, !=, in, not in, contains, startswith, endswith, matches\n"
+"Suffixez un opérateur avec « ? » pour afficher aussi le dossier lorsque la variable est vide (p. ex. « type contains? Sto »).\n"
+"\n"
+"Exemple : country = DE; type contains Sto"
+
+msgid "Name:"
+msgstr "Nom :"
+
+msgid "Mode:"
+msgstr "Mode :"
+
+msgid ""
+"Type or paste the snippet text here...\n"
+"Use the Insert Token menu (or type {DATE}, {TAB}, {ENTER}, {CLIPBOARD})."
+msgstr ""
+"Saisissez ou collez le texte de l'extrait ici...\n"
+"Utilisez le menu Insérer un jeton (ou tapez {DATE}, {TAB}, {ENTER}, {CLIPBOARD})."
+
+msgid "Date ({DATE})"
+msgstr "Date ({DATE})"
+
+msgid "Enter ({ENTER})"
+msgstr "Entrée ({ENTER})"
+
+msgid "Tab ({TAB})"
+msgstr "Tab ({TAB})"
+
+msgid "Clipboard ({CLIPBOARD})"
+msgstr "Presse-papiers ({CLIPBOARD})"
+
+msgid "Custom date..."
+msgstr "Date personnalisée..."
+
+msgid "Wait (ms)..."
+msgstr "Attendre (ms)..."
+
+msgid "Key / shortcut"
+msgstr "Touche / raccourci"
+
+msgid "Ctrl ({CTRL})"
+msgstr "Ctrl ({CTRL})"
+
+msgid "Alt ({ALT})"
+msgstr "Alt ({ALT})"
+
+msgid "Shift ({SHIFT})"
+msgstr "Maj ({SHIFT})"
+
+msgid "Delete ({DEL})"
+msgstr "Suppr ({DEL})"
+
+msgid "Escape ({ESC})"
+msgstr "Échap ({ESC})"
+
+msgid "Backspace ({BACKSPACE})"
+msgstr "Retour arrière ({BACKSPACE})"
+
+msgid "Space ({SPACE})"
+msgstr "Espace ({SPACE})"
+
+msgid "Select all (Ctrl+A)"
+msgstr "Tout sélectionner (Ctrl+A)"
+
+msgid "Copy (Ctrl+C)"
+msgstr "Copier (Ctrl+C)"
+
+msgid "Cut (Ctrl+X)"
+msgstr "Couper (Ctrl+X)"
+
+msgid "Paste (Ctrl+V)"
+msgstr "Coller (Ctrl+V)"
+
+msgid "Undo (Ctrl+Z)"
+msgstr "Annuler (Ctrl+Z)"
+
+msgid "Save (Ctrl+S)"
+msgstr "Enregistrer (Ctrl+S)"
+
+msgid "Find (Ctrl+F)"
+msgstr "Rechercher (Ctrl+F)"
+
+msgid "Close window (Alt+F4)"
+msgstr "Fermer la fenêtre (Alt+F4)"
+
+msgid "Task switcher (Ctrl+Shift+Esc)"
+msgstr "Gestionnaire des tâches (Ctrl+Maj+Échap)"
+
+msgid "Custom key combo..."
+msgstr "Combinaison personnalisée..."
+
+msgid "Translate to..."
+msgstr "Traduire vers..."
+
+msgid "Other target language..."
+msgstr "Autre langue cible..."
+
+msgid "From specific source language..."
+msgstr "Depuis une langue source spécifique..."
+
+msgid "Custom date"
+msgstr "Date personnalisée"
+
+msgid "Python strftime format (e.g. %d.%m.%Y %H:%M):"
+msgstr "Format strftime Python (p. ex. %d.%m.%Y %H:%M) :"
+
+msgid "Wait token"
+msgstr "Jeton d'attente"
+
+msgid "Pause for how many milliseconds before continuing?"
+msgstr "Combien de millisecondes attendre avant de continuer ?"
+
+msgid "Key combo"
+msgstr "Combinaison de touches"
+
+msgid "Combo (e.g. CTRL+A, ALT+F4, CTRL+SHIFT+DEL):"
+msgstr "Combinaison (p. ex. CTRL+A, ALT+F4, CTRL+SHIFT+DEL) :"
+
+msgid "Translation target"
+msgstr "Cible de traduction"
+
+msgid "DeepL target language code (e.g. DE, FR, EN-US, PT-BR):"
+msgstr "Code de langue cible DeepL (p. ex. DE, FR, EN-US, PT-BR) :"
+
+msgid "Red"
+msgstr "Rouge"
+
+msgid "Orange"
+msgstr "Orange"
+
+msgid "Yellow"
+msgstr "Jaune"
+
+msgid "Green"
+msgstr "Vert"
+
+msgid "Teal"
+msgstr "Sarcelle"
+
+msgid "Blue"
+msgstr "Bleu"
+
+msgid "Purple"
+msgstr "Violet"
+
+msgid "Pink"
+msgstr "Rose"
+
+msgid "Grey"
+msgstr "Gris"
+
+msgid "Duplicate"
+msgstr "Dupliquer"
+
+msgid "Set Colour"
+msgstr "Définir la couleur"
+
+msgid "No colour"
+msgstr "Aucune couleur"
+
+msgid "deepl package not available ({0}). Run: pip install deepl"
+msgstr "Paquet deepl indisponible ({0}). Exécutez : pip install deepl"
+
+msgid "No API key"
+msgstr "Aucune clé d'API"
+
+msgid "Invalid API key"
+msgstr "Clé d'API invalide"
+
+msgid "DeepL error: {0}"
+msgstr "Erreur DeepL : {0}"
+
+msgid "Error: {0}"
+msgstr "Erreur : {0}"
+
+msgid "OK - {0} / {1} chars ({2:.1f}%)"
+msgstr "OK - {0} / {1} caractères ({2:.1f}%)"
+
+msgid "OK"
+msgstr "OK"
+
+msgid "DeepL API key is not validated. Open Options and enter a valid key to use translation snippets."
+msgstr "La clé d'API DeepL n'est pas validée. Ouvrez les Options et saisissez une clé valide pour utiliser les extraits de traduction."
+
+msgid "DeepL translation failed for {0}: {1}"
+msgstr "Échec de la traduction DeepL pour {0} : {1}"
+
+msgid "DeepL returned {0} results for {1} inputs ({2})."
+msgstr "DeepL a renvoyé {0} résultats pour {1} entrées ({2})."
+
+msgid "English"
+msgstr "Anglais"
+
+msgid "English (US)"
+msgstr "Anglais (É.-U.)"
+
+msgid "English (UK)"
+msgstr "Anglais (Royaume-Uni)"
+
+msgid "German"
+msgstr "Allemand"
+
+msgid "French"
+msgstr "Français"
+
+msgid "Spanish"
+msgstr "Espagnol"
+
+msgid "Italian"
+msgstr "Italien"
+
+msgid "Dutch"
+msgstr "Néerlandais"
+
+msgid "Portuguese"
+msgstr "Portugais"
+
+msgid "Portuguese (Brazil)"
+msgstr "Portugais (Brésil)"
+
+msgid "Polish"
+msgstr "Polonais"
+
+msgid "Russian"
+msgstr "Russe"
+
+msgid "Japanese"
+msgstr "Japonais"
+
+msgid "Chinese"
+msgstr "Chinois"
+
+msgid "Bulgarian"
+msgstr "Bulgare"
+
+msgid "Czech"
+msgstr "Tchèque"
+
+msgid "Danish"
+msgstr "Danois"
+
+msgid "Greek"
+msgstr "Grec"
+
+msgid "Estonian"
+msgstr "Estonien"
+
+msgid "Finnish"
+msgstr "Finnois"
+
+msgid "Hungarian"
+msgstr "Hongrois"
+
+msgid "Indonesian"
+msgstr "Indonésien"
+
+msgid "Korean"
+msgstr "Coréen"
+
+msgid "Lithuanian"
+msgstr "Lituanien"
+
+msgid "Latvian"
+msgstr "Letton"
+
+msgid "Norwegian"
+msgstr "Norvégien"
+
+msgid "Romanian"
+msgstr "Roumain"
+
+msgid "Slovak"
+msgstr "Slovaque"
+
+msgid "Slovenian"
+msgstr "Slovène"
+
+msgid "Swedish"
+msgstr "Suédois"
+
+msgid "Turkish"
+msgstr "Turc"
+
+msgid "Ukrainian"
+msgstr "Ukrainien"
+
+msgid "Insert translation"
+msgstr "Insérer une traduction"
+
+msgid "Auto-detect"
+msgstr "Détection automatique"
+
+msgid "Source language:"
+msgstr "Langue source :"
+
+msgid "Target language:"
+msgstr "Langue cible :"
+
+msgid "Leave the source on <b>Auto-detect</b> unless you need to force it (e.g. short ambiguous phrases)."
+msgstr "Laissez la source sur <b>Détection automatique</b> sauf si vous devez la forcer (p. ex. phrases courtes ambiguës)."
+
+msgid "Open Poltergeist"
+msgstr "Ouvrir Poltergeist"
+
+msgid "Pause hotkey"
+msgstr "Pause du raccourci"
+
+msgid "Exit"
+msgstr "Quitter"

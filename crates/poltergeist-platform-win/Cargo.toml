@@ -1,0 +1,19 @@
+[package]
+name = "poltergeist-platform-win"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+once_cell.workspace = true
+global-hotkey.workspace = true
+arboard.workspace = true
+poltergeist-core = { path = "../poltergeist-core" }
+tracing.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true

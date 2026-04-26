@@ -1,0 +1,15 @@
+# Rust / Cargo
+debug/
+target/
+**/*.rs.bk
+*.pdb
+
+# LLVM / coverage artifacts
+*.profraw
+*.profdata
+lcov.info
+cobertura.xml
+
+# Project-specific
+_Resources/
+poltergeist.json

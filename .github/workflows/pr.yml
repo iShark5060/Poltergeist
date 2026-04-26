@@ -1,0 +1,33 @@
+name: Poltergeist PR Checks
+
+permissions:
+  contents: read
+  pull-requests: read
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: check formatting
+        run: cargo fmt --all -- --check
+
+      - name: check linting
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: run tests
+        run: cargo test --workspace

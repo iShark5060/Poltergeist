@@ -1,0 +1,30 @@
+[package]
+name = "poltergeist-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+slint.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+regex.workspace = true
+chrono.workspace = true
+arboard.workspace = true
+once_cell.workspace = true
+uuid.workspace = true
+rfd.workspace = true
+poltergeist-core = { path = "../poltergeist-core" }
+poltergeist-io = { path = "../poltergeist-io" }
+poltergeist-platform-win = { path = "../poltergeist-platform-win" }
+tray-icon = "0.22.1"
+tauri-winrt-notification = "0.7.2"
+
+[build-dependencies]
+winres = "0.1"
+slint-build.workspace = true
