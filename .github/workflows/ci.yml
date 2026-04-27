@@ -1,4 +1,4 @@
-name: Poltergeist PR Checks
+name: Poltergeist CI/CD
 
 permissions:
   contents: write
@@ -20,7 +20,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate:
+  pre-checks:
     runs-on: windows-latest
     timeout-minutes: 10
 
@@ -47,7 +47,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 18
 
-    needs: validate
+    needs: pre-checks
 
     steps:
       - name: Checkout code

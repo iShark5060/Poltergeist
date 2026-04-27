@@ -1,9 +1,9 @@
 # Poltergeist
 
-![Platform: Windows](https://img.shields.io/badge/platform-Windows_10%2F11-0078D6?style=flat-square&logo=windows&logoColor=white)
+![Platform: Windows](https://img.shields.io/badge/platform-Windows_10%2F11-0078D6?style=flat-square&logo=microsoft&logoColor=white)
 ![Rust 1.77+](https://img.shields.io/badge/rust-1.77%2B-B7410E?style=flat-square&logo=rust&logoColor=white)
 ![Slint](https://img.shields.io/badge/UI-Slint-41CD52?style=flat-square&logo=slint&logoColor=white)
-![Portable build](https://img.shields.io/badge/build-Cargo-FFD43B?style=flat-square&logo=cargo&logoColor=black)
+![Portable build](https://img.shields.io/badge/build-Cargo-FFD43B?style=flat-square&logo=rust&logoColor=black)
 ![i18n: EN · DE · ES · FR](https://img.shields.io/badge/i18n-EN%20·%20DE%20·%20ES%20·%20FR-6C7A89?style=flat-square)
 ![Made with Cursor](https://img.shields.io/badge/made_with-Cursor-000000?style=flat-square&logo=cursor&logoColor=white)
 
