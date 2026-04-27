@@ -14,7 +14,7 @@ concurrency:
 jobs:
   validate:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code
@@ -23,11 +23,16 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache Rust dependencies and build outputs
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-stable-workspace
+
       - name: check formatting
         run: cargo fmt --all -- --check
 
       - name: check linting
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: run tests
-        run: cargo test --workspace
+        run: cargo test --workspace --locked

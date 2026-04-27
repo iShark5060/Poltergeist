@@ -22,7 +22,7 @@ concurrency:
 jobs:
   pre-checks:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
 
     steps:
       - name: Checkout code
@@ -31,21 +31,26 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache Rust dependencies and build outputs
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-stable-workspace
+
       - name: check formatting
         run: cargo fmt --all -- --check
 
       - name: check linting
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: run tests
-        run: cargo test --workspace
+        run: cargo test --workspace --locked
 
       - name: Ensure admin-edition binary compiles
-        run: cargo check -p poltergeist-app --features admin-edition
+        run: cargo check -p poltergeist-app --features admin-edition --locked
 
   build:
     runs-on: windows-latest
-    timeout-minutes: 18
+    timeout-minutes: 35
 
     needs: pre-checks
 
@@ -56,8 +61,13 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Build workspace (user edition binary)
-        run: cargo build --workspace --release
+      - name: Cache Rust dependencies and build outputs
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-stable-workspace
+
+      - name: Build user edition binary
+        run: cargo build -p poltergeist-app --release --locked
 
       - name: Package user edition zip
         shell: pwsh
@@ -70,7 +80,7 @@ jobs:
           Compress-Archive -Path staging-user/* -DestinationPath poltergeist-nightly-user-windows.zip -Force
 
       - name: Build admin edition binary
-        run: cargo build -p poltergeist-app --release --features admin-edition
+        run: cargo build -p poltergeist-app --release --features admin-edition --locked
 
       - name: Package admin edition zip
         shell: pwsh
