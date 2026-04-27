@@ -179,9 +179,7 @@ fn accent_color_option_from_picker_hex(raw: &str) -> Option<String> {
     } else {
         format!("#{t}")
     };
-    if parse_color_hex(&normalized).is_none() {
-        return None;
-    }
+    parse_color_hex(&normalized)?;
     if normalized.eq_ignore_ascii_case(DEFAULT_ACCENT_HEX) {
         None
     } else {
@@ -4092,7 +4090,7 @@ fn main() -> Result<()> {
             }
             let Some(path) = rfd::FileDialog::new()
                 .add_filter("JSON", &["json"])
-                .set_title(&i18n::tr("Import Team Tree JSON"))
+                .set_title(i18n::tr("Import Team Tree JSON"))
                 .pick_file()
             else {
                 window.set_status_text(i18n::tr("Import cancelled").into());
@@ -4155,7 +4153,7 @@ fn main() -> Result<()> {
             let Some(path) = rfd::FileDialog::new()
                 .add_filter("JSON", &["json"])
                 .set_file_name(&default_name)
-                .set_title(&i18n::tr("Export snippets (Team)"))
+                .set_title(i18n::tr("Export snippets (Team)"))
                 .save_file()
             else {
                 window.set_status_text(i18n::tr("Export cancelled").into());
@@ -4324,7 +4322,7 @@ fn main() -> Result<()> {
         if let Some(window) = weak_import.upgrade() {
             let Some(path) = rfd::FileDialog::new()
                 .add_filter("JSON", &["json"])
-                .set_title(&i18n::tr("Import Personal Tree JSON"))
+                .set_title(i18n::tr("Import Personal Tree JSON"))
                 .pick_file()
             else {
                 window.set_status_text(i18n::tr("Import cancelled").into());
@@ -4384,7 +4382,7 @@ fn main() -> Result<()> {
             let Some(path) = rfd::FileDialog::new()
                 .add_filter("JSON", &["json"])
                 .set_file_name(&default_name)
-                .set_title(&i18n::tr("Export snippets (Personal)"))
+                .set_title(i18n::tr("Export snippets (Personal)"))
                 .save_file()
             else {
                 window.set_status_text(i18n::tr("Export cancelled").into());
@@ -4487,7 +4485,7 @@ fn main() -> Result<()> {
             // accept newlines or semicolons as the separator so existing
             // configs continue to work.
             st.cfg.settings.context_patterns = patterns
-                .split(|c: char| c == '\n' || c == ';')
+                .split(['\n', ';'])
                 .map(str::trim)
                 .filter(|p| !p.is_empty())
                 .map(ToOwned::to_owned)
@@ -4663,9 +4661,9 @@ fn main() -> Result<()> {
             if st.edition == Edition::Admin {
                 let choice = MessageDialog::new()
                     .set_level(MessageLevel::Warning)
-                    .set_title(&i18n::tr("Refresh from share"))
+                    .set_title(i18n::tr("Refresh from share"))
                     .set_description(
-                        &i18n::tr("This will replace the local Team tree with the latest version from the share. Any unpublished edits will be lost.\n\nContinue?"),
+                        i18n::tr("This will replace the local Team tree with the latest version from the share. Any unpublished edits will be lost.\n\nContinue?"),
                     )
                     .set_buttons(MessageButtons::YesNo)
                     .show();
@@ -4729,8 +4727,8 @@ fn main() -> Result<()> {
                 drop(st);
                 MessageDialog::new()
                     .set_level(MessageLevel::Info)
-                    .set_title(&i18n::tr("Publish to share"))
-                    .set_description(&i18n::tr("Set a share path first."))
+                    .set_title(i18n::tr("Publish to share"))
+                    .set_description(i18n::tr("Set a share path first."))
                     .set_buttons(MessageButtons::Ok)
                     .show();
                 window.set_status_text(
@@ -4740,9 +4738,9 @@ fn main() -> Result<()> {
             }
             let confirm = MessageDialog::new()
                 .set_level(MessageLevel::Info)
-                .set_title(&i18n::tr("Publish to share"))
+                .set_title(i18n::tr("Publish to share"))
                 .set_description(
-                    &i18n::tr("This will publish the current Team tree to the share. All users will pick it up on their next startup or refresh.\n\nContinue?"),
+                    i18n::tr("This will publish the current Team tree to the share. All users will pick it up on their next startup or refresh.\n\nContinue?"),
                 )
                 .set_buttons(MessageButtons::YesNo)
                 .show();
@@ -4804,7 +4802,7 @@ fn main() -> Result<()> {
                     }
                     MessageDialog::new()
                         .set_level(MessageLevel::Info)
-                        .set_title(&i18n::tr("Publish to share"))
+                        .set_title(i18n::tr("Publish to share"))
                         .set_description(description)
                         .set_buttons(MessageButtons::Ok)
                         .show();
@@ -4817,7 +4815,7 @@ fn main() -> Result<()> {
                     drop(st);
                     MessageDialog::new()
                         .set_level(MessageLevel::Warning)
-                        .set_title(&i18n::tr("Publish failed"))
+                        .set_title(i18n::tr("Publish failed"))
                         .set_description(msg)
                         .set_buttons(MessageButtons::Ok)
                         .show();

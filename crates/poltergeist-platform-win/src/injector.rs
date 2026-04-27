@@ -294,7 +294,9 @@ fn vk_for_main_key(key: &str) -> Option<windows::Win32::UI::Input::KeyboardAndMo
 
 #[cfg(windows)]
 fn send_vk(vk: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY) -> anyhow::Result<()> {
-    use windows::Win32::UI::Input::KeyboardAndMouse::{SendInput, INPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP};
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        SendInput, INPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
+    };
     let inputs = [
         key_input(vk, KEYBD_EVENT_FLAGS(0)),
         key_input(vk, KEYEVENTF_KEYUP),
@@ -314,8 +316,8 @@ fn caps_lock_on() -> bool {
 #[cfg(windows)]
 fn send_char_via_vk(ch: char) -> anyhow::Result<bool> {
     use windows::Win32::UI::Input::KeyboardAndMouse::{
-        MapVirtualKeyW, SendInput, VkKeyScanW, INPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP, MAPVK_VK_TO_VSC,
-        VIRTUAL_KEY, VK_CONTROL, VK_MENU, VK_SHIFT,
+        MapVirtualKeyW, SendInput, VkKeyScanW, INPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
+        MAPVK_VK_TO_VSC, VIRTUAL_KEY, VK_CONTROL, VK_MENU, VK_SHIFT,
     };
 
     let mut utf16 = [0u16; 2];

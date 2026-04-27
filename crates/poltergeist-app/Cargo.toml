@@ -32,7 +32,7 @@ rfd.workspace = true
 poltergeist-core = { path = "../poltergeist-core" }
 poltergeist-io = { path = "../poltergeist-io" }
 poltergeist-platform-win = { path = "../poltergeist-platform-win" }
-tray-icon = "0.22.1"
+tray-icon = { version = "0.22.1", default-features = false }
 tauri-winrt-notification = "0.7.2"
 
 [build-dependencies]

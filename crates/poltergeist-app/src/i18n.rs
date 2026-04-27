@@ -265,7 +265,7 @@ mod tests {
     fn drops_empty_translations() {
         let raw = "msgid \"foo\"\nmsgstr \"\"\n";
         let cat = parse_po(raw);
-        assert!(cat.get("foo").is_none());
+        assert!(!cat.contains_key("foo"));
     }
 
     #[test]
@@ -280,7 +280,7 @@ mod tests {
         );
         let cat = parse_po(raw);
         assert_eq!(cat.get("a"), Some(&"b".to_string()));
-        assert!(cat.get("").is_none());
+        assert!(!cat.contains_key(""));
     }
 
     #[test]
