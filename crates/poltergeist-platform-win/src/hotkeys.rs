@@ -49,11 +49,6 @@ impl HotkeyManager {
     }
 
     pub fn poll_events(&self) -> Vec<u32> {
-        // The `global-hotkey` crate emits BOTH `Pressed` and `Released`
-        // events for the same id. Without filtering, the 125ms polling
-        // tick in main.rs sees the press (opens the popup) and then the
-        // release (toggles it off again), so the picker visibly closes
-        // the moment the user lifts the keys. Only forward Pressed events.
         let mut out = Vec::new();
         while let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() {
             if event.state == HotKeyState::Pressed {

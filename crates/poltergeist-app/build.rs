@@ -1,8 +1,5 @@
 use std::path::{Path, PathBuf};
 
-/// Tiny recursive directory walker scoped to one extension. We avoid
-/// the `walkdir` crate so the build-script dependency footprint stays
-/// the same as before bundled translations were added.
 fn walkdir(root: &Path, ext: &str) -> Vec<PathBuf> {
     let mut out = Vec::new();
     let mut stack = vec![root.to_path_buf()];
@@ -27,21 +24,10 @@ fn main() {
 
     let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default());
 
-    // Compile the Slint UI definition into Rust code that gets included by main.rs.
-    //
-    // Translations are bundled at build-time via `with_bundled_translations`
-    // — the alternative `gettext` runtime feature would require a system
-    // libintl on Windows. Bundling embeds each .po into the binary; the
-    // language picker in Options swaps locales via
-    // `slint::select_bundled_translation`. See `lang/<locale>/LC_MESSAGES/`
-    // for the source files (one per locale, generated from the Python
-    // `_apply_translations.py` mapping table).
     let slint_entry = manifest_dir.join("ui").join("main.slint");
     println!("cargo:rerun-if-changed={}", slint_entry.display());
     let lang_dir = manifest_dir.join("lang");
     if lang_dir.is_dir() {
-        // Re-run the build script whenever any .po underneath `lang/`
-        // changes — touching just the directory wouldn't catch edits.
         for entry in walkdir(&lang_dir, "po") {
             println!("cargo:rerun-if-changed={}", entry.display());
         }
@@ -55,9 +41,6 @@ fn main() {
         panic!("Failed to compile Slint UI: {err}");
     }
 
-    // Embed the Windows app icon resource so the .exe carries the correct
-    // shell/taskbar icon. User builds prefer `AppIcon.ico`; `--features
-    // admin-edition` builds prefer `AppIconAdmin.ico`.
     #[cfg(target_os = "windows")]
     {
         let assets_dir = manifest_dir.join("..").join("..").join("assets");

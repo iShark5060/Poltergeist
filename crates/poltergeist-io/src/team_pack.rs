@@ -62,8 +62,6 @@ pub fn cache_dir(base_dir: &Path) -> PathBuf {
     base_dir.join(CACHE_DIRNAME)
 }
 
-/// True when `share_path` is an `http://` or `https://` folder base (manifest and tree are
-/// fetched as `{base}/manifest.json` and `{base}/team.poltergeist.json`).
 pub fn is_http_share(share_path: &str) -> bool {
     let t = share_path.trim();
     t.starts_with("http://") || t.starts_with("https://")

@@ -33,6 +33,7 @@ directory so a stale CWD won't silently rewrite the wrong file:
 from __future__ import annotations
 
 import argparse
+import difflib
 import re
 import sys
 from pathlib import Path
@@ -40,43 +41,21 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SLINT_FILE = HERE.parent / "ui" / "main.slint"
 
-# Properties whose literal value is always a human-readable label.
-# (TextInput / LineEdit `text:` bindings would normally be user data,
-# but those don't appear with literal strings in main.slint — every
-# editable field is data-bound. Verified by grep before adding.)
 _LABEL_PROPS = ("text", "tooltip-text", "placeholder-text", "title")
 
 _PROP_GROUP = "|".join(re.escape(p) for p in _LABEL_PROPS)
 
-# Two patterns the rewrite considers:
-#
-# 1. "Standalone" form — the property sits on its own line inside a
-#    component body. Matches the bulk of declarations:
-#
-#        text: "Hello";
-#
-# 2. "Inline" form — `FieldLabel { text: "..."; }` and similar
-#    one-liners. We only rewrite inline matches when the leading
-#    component identifier is in the allow-list below; this keeps the
-#    rewriter from touching struct-literal model entries (e.g. the
-#    `[ { text: "Foo", code: "bar" }, ... ]` arrays consumed by Rust).
 _LINE_RE = re.compile(
-    r'^(?P<indent>\s*)(?P<prop>(?:%s))\s*:\s*"(?P<lit>(?:[^"\\]|\\.)*)"\s*(?P<tail>;.*)?$'
-    % _PROP_GROUP
+    rf'^(?P<indent>\s*)(?P<prop>(?:{_PROP_GROUP}))\s*:\s*"'
+    r'(?P<lit>(?:[^"\\]|\\.)*)"\s*(?P<tail>;.*)?$'
 )
 
-# Allow-list of inline wrapper components whose `text:` field is a
-# label rather than data. Anything else is left alone to avoid
-# accidentally translating model-literal struct fields.
 _INLINE_WRAPPERS = ("FieldLabel", "SectionTitle")
 _INLINE_RE = re.compile(
     r'(?P<wrapper>(?:%s))\s*\{\s*(?P<prop>(?:%s))\s*:\s*"(?P<lit>(?:[^"\\]|\\.)*)"\s*;'
     % ("|".join(re.escape(w) for w in _INLINE_WRAPPERS), _PROP_GROUP)
 )
 
-# Literals we should *never* mark for translation even when they
-# textually look label-shaped — they are codes/identifiers consumed by
-# Rust (e.g. for ContextMenuArea entries that ship a code string up).
 _SKIP_LITERALS = {
     "PAIR",
     "snippet",
@@ -90,12 +69,6 @@ _SKIP_LITERALS = {
     "false",
 }
 
-
-# Slint's `@tr(...)` treats `{N}` as a positional placeholder, so any
-# *literal* curly brace inside the source text needs to be escaped as
-# `{{` / `}}` (matching gettext / Rust's format!() conventions). Token
-# names like `{DATE}` or `{VAR=name}` are *not* placeholders to Slint
-# and would otherwise crash the build.
 _PLACEHOLDER_RE = re.compile(r"\{(\d+)\}")
 
 
@@ -125,12 +98,10 @@ def _should_skip(literal: str) -> bool:
     if not literal:
         return True
     if "\\u" in literal:
-        # Font-Awesome glyph escape like "\u{f07c}".
         return True
     if literal in _SKIP_LITERALS:
         return True
     if not any(ch.isalpha() for ch in literal):
-        # Pure punctuation/numbers — not translatable.
         return True
     return False
 
@@ -161,10 +132,6 @@ def _rewrite(text: str) -> tuple[str, int]:
                 changes += 1
                 continue
 
-        # Inline wrapper rewrite — only fires for known label
-        # components. We re-scan with `_INLINE_RE.sub` so a single line
-        # could in theory hold multiple matches (rare in practice, but
-        # cheap to support).
         def _sub_inline(match: re.Match[str]) -> str:
             nonlocal changes
             literal = match.group("lit")
@@ -184,6 +151,7 @@ def _rewrite(text: str) -> tuple[str, int]:
 
 
 def main() -> int:
+    """Run the Slint translation-annotation rewrite in check or write mode."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true", help="dry-run; print diff only")
     args = parser.parse_args()
@@ -193,7 +161,6 @@ def main() -> int:
         if original == rewritten:
             print("no changes")
             return 0
-        import difflib
 
         diff = difflib.unified_diff(
             original.splitlines(keepends=True),

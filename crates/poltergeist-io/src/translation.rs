@@ -117,9 +117,6 @@ impl TranslationService {
         translation_regex().is_match(text)
     }
 
-    /// Returns the (source, target) pairs for every TRANSLATION block in
-    /// `text`, in document order. The source is `None` when the block
-    /// omits the optional `XX>` source-language prefix.
     pub fn translation_pairs_in_text(text: &str) -> Vec<(Option<String>, String)> {
         translation_regex()
             .captures_iter(text)
@@ -134,13 +131,6 @@ impl TranslationService {
             .collect()
     }
 
-    /// Mirror of Python's `uniform_expanded_translation_body_if_any`:
-    /// if every TRANSLATION block in `text` expands to the *same*
-    /// source body once tokens are evaluated, return that body so the
-    /// review modal can show one paragraph instead of `N` duplicates.
-    /// Returns `None` when there are no blocks or when the bodies
-    /// differ — in that case callers fall back to
-    /// `expand_translation_sources` (which inlines every body).
     pub fn uniform_expanded_translation_body_if_any(
         text: &str,
         default_date_format: &str,

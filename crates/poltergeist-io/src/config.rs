@@ -25,11 +25,6 @@ pub fn load(base_dir: &Path) -> PoltergeistConfig {
     merge_into_default(defaults)
 }
 
-/// True when the current process is starting up before
-/// `poltergeist.json` has ever been written. Mirrors Python's
-/// `bootstrapped_from_defaults` (minus the defaults-file requirement
-/// — Rust uses this for the first-run tray balloon, which we want to
-/// fire even on a vanilla install with no defaults file present).
 pub fn is_first_run(base_dir: &Path) -> bool {
     !config_path(base_dir).exists()
 }

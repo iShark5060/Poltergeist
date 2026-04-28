@@ -21,18 +21,14 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 TARGET = HERE.parent / "src" / "main.rs"
 
-# Match `.set_status_text("LITERAL".into())` exactly, on a single line.
 _LITERAL_RE = re.compile(
     r"""\.set_status_text\(\s*"((?:[^"\\]|\\.)*)"\.into\(\)\s*\)"""
 )
-# Match `.set_status_text(format!("LITERAL", a, b).into())` on a single line.
 _FORMAT_RE = re.compile(
     r"""\.set_status_text\(\s*format!\(\s*"((?:[^"\\]|\\.)*)"\s*,\s*([^)]*)\)\.into\(\)\s*\)"""
 )
-# Match a status_text inside a multi-line block where the literal sits alone.
 _STANDALONE_LITERAL_RE = re.compile(r'^(\s*)"((?:[^"\\]|\\.)*)"\.into\(\),?\s*$')
 
-# Skip strings that look like internal logs (no spaces, all-lowercase tokens) etc.
 _SKIP_PREFIXES = ("DEBUG:", "TRACE:")
 
 
@@ -45,9 +41,6 @@ def _convert_format_string(literal: str, args_str: str) -> str | None:
     `.set_status_text(` call, or None if the literal already mixes named or
     positional placeholders that we cannot safely rewrite.
     """
-    # We only handle the simple `{}` (positional) placeholder case here. Rust
-    # `format!` also supports `{name}`, `{0}` and format specifiers; if any of
-    # those appear, bail out and let the caller hand-edit.
     if re.search(r"\{[^{}]*[^{}\s]\}", literal) and not re.fullmatch(
         r"(?:[^{}]|\{\}|\{\{|\}\})*", literal
     ):
@@ -125,8 +118,6 @@ def _rewrite(text: str) -> tuple[str, int]:
         literal = match.group(1)
         if _should_skip(literal):
             return match.group(0)
-        # Already wrapped (e.g. starts with `i18n::tr(`)? `_LITERAL_RE` only
-        # matches the bare literal form so this branch is purely defensive.
         if "i18n::tr" in match.group(0):
             return match.group(0)
         changed += 1
@@ -150,6 +141,7 @@ def _rewrite(text: str) -> tuple[str, int]:
 
 
 def main() -> int:
+    """Run the status-text annotation pass over a target Rust source file."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--check", action="store_true", help="Dry-run; do not write file."

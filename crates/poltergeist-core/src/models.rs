@@ -151,10 +151,8 @@ pub struct Settings {
     pub team_shortcuts: HashMap<String, String>,
     #[serde(default)]
     pub context_patterns: Vec<String>,
-    /// Custom UI accent (`#rrggbb`). `None` = built-in default (Discord-style blue).
     #[serde(default)]
     pub accent_color: Option<String>,
-    /// Last main window inner size (logical px), persisted when the user resizes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub main_window_width: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

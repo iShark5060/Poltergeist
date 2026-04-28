@@ -434,7 +434,6 @@ pub fn expand_conditionals(text: &str, context: Option<&HashMap<String, String>>
                     break;
                 }
             } else if branch.kind == BranchKind::If {
-                // A malformed IF marker should not crash parsing.
                 chosen = text[branch.body_start..body_end].to_string();
                 break;
             }

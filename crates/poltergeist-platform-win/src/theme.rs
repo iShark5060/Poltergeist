@@ -1,11 +1,3 @@
-//! OS dark/light-mode helpers.
-//!
-//! Reads the per-user "apps theme" setting that Windows 10/11 expose via
-//! `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme`.
-//! On non-Windows targets `system_uses_light_theme` returns `None` so callers
-//! can fall back to whatever default they want (Poltergeist defaults Dark to
-//! match the Python parent).
-
 #[cfg(windows)]
 pub fn system_uses_light_theme() -> Option<bool> {
     use windows::core::PCWSTR;

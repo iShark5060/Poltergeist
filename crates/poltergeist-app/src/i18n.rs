@@ -1,38 +1,11 @@
-//! Rust-side translation lookup with the same .po catalogue that the
-//! Slint UI consumes via `@tr(...)`.
-//!
-//! Slint 1.10's bundled-translations feature lives entirely on the
-//! Slint side — there is no public Rust API to look up a bundled
-//! string from arbitrary Rust code. For the strings that we *build*
-//! in Rust (status bar, message dialogs, picker subtitles, …) we
-//! therefore re-parse the same `lang/<locale>/LC_MESSAGES/*.po`
-//! files at compile time, embed them via `include_str!`, and run a
-//! tiny lookup against the active locale.
-//!
-//! Usage:
-//!
-//! ```ignore
-//! crate::i18n::set_locale("de");
-//! let label = crate::i18n::tr("Loaded settings");
-//! let msg   = crate::i18n::tr_format("Loaded {0}", &[&path]);
-//! ```
-//!
-//! Format placeholders use the same `{0}`, `{1}`, … syntax that
-//! Slint's `@tr` and Python's `str.format` both speak, so a single
-//! source string can serve both ports.
-
 use std::collections::HashMap;
 use std::sync::RwLock;
 
 use once_cell::sync::Lazy;
 
-/// One catalog per bundled locale. Empty values are dropped during
-/// parsing so a falsy lookup falls back to the source string.
 type Catalog = HashMap<String, String>;
 type CatalogRegistry = HashMap<&'static str, Catalog>;
 
-/// Each tuple is `(locale, raw .po contents)`. Keep this list in sync
-/// with the directories under `crates/poltergeist-app/lang/`.
 static BUNDLED_PO_FILES: &[(&str, &str)] = &[
     (
         "de",
@@ -58,10 +31,6 @@ static CATALOGS: Lazy<CatalogRegistry> = Lazy::new(|| {
 
 static ACTIVE_LOCALE: Lazy<RwLock<String>> = Lazy::new(|| RwLock::new(String::new()));
 
-/// Switch the active locale used by `tr` / `tr_format`. Pass an empty
-/// string or `"en"` to revert to the source language. Unknown locales
-/// silently revert to English so Rust callers don't have to deal with
-/// the fallible `slint::SelectBundledTranslationError` here.
 pub fn set_locale(code: &str) {
     let normalized = code.trim().to_ascii_lowercase();
     let target = if normalized.is_empty() || normalized == "en" {
@@ -69,9 +38,6 @@ pub fn set_locale(code: &str) {
     } else if CATALOGS.contains_key(normalized.as_str()) {
         normalized
     } else {
-        // Unknown locale — log once and fall back to English; the
-        // .slint side already handles this case via its own error
-        // enum, so we stay consistent and quiet here.
         String::new()
     };
     if let Ok(mut guard) = ACTIVE_LOCALE.write() {
@@ -79,10 +45,6 @@ pub fn set_locale(code: &str) {
     }
 }
 
-/// Look up a single source string in the active catalog. Returns the
-/// source string itself when no translation is available — never
-/// returns an empty string, so it's safe to use directly in formatted
-/// output.
 pub fn tr(source: &str) -> String {
     let locale = match ACTIVE_LOCALE.read() {
         Ok(guard) => guard.clone(),
@@ -100,11 +62,6 @@ pub fn tr(source: &str) -> String {
         .unwrap_or_else(|| source.to_string())
 }
 
-/// Translate `source` and substitute `{0}`, `{1}`, … placeholders
-/// with the supplied arguments. Mirrors Python's `str.format(*args)`
-/// and Slint's `@tr("...", args...)`.
-///
-/// Unmatched placeholders are left as-is, matching gettext defaults.
 pub fn tr_format(source: &str, args: &[&dyn std::fmt::Display]) -> String {
     let template = tr(source);
     let mut out = String::with_capacity(template.len());
@@ -112,7 +69,6 @@ pub fn tr_format(source: &str, args: &[&dyn std::fmt::Display]) -> String {
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'{' {
-            // Escape: `{{` -> literal `{`.
             if i + 1 < bytes.len() && bytes[i + 1] == b'{' {
                 out.push('{');
                 i += 2;
@@ -141,11 +97,6 @@ pub fn tr_format(source: &str, args: &[&dyn std::fmt::Display]) -> String {
     out
 }
 
-/// Parse a single `.po` file into a `msgid -> msgstr` map. Supports the
-/// multi-line continuation form where a `msgid ""` on one line is
-/// followed by `"chunk"` lines. Empty `msgstr` entries are skipped so
-/// the lookup can fall through to the source string. C-style escapes
-/// `\n`, `\t`, `\"`, `\\` are unescaped.
 fn parse_po(raw: &str) -> Catalog {
     let mut out = Catalog::new();
     let mut state = ParseState::Idle;
@@ -164,7 +115,6 @@ fn parse_po(raw: &str) -> Catalog {
     for raw_line in raw.lines() {
         let line = raw_line.trim_start();
         if line.is_empty() {
-            // Blank line — entry boundary.
             flush(&mut out, &mut current_id, &mut current_str);
             state = ParseState::Idle;
             continue;
@@ -183,8 +133,6 @@ fn parse_po(raw: &str) -> Catalog {
             state = ParseState::Str;
             continue;
         }
-        // Continuation of the previous string. Trim() because `.po`
-        // files can have trailing whitespace before the quote.
         if line.starts_with('"') {
             let chunk = unquote_po(line.trim());
             match state {
@@ -195,7 +143,6 @@ fn parse_po(raw: &str) -> Catalog {
         }
     }
     flush(&mut out, &mut current_id, &mut current_str);
-    // Drop the empty header entry that gettext always emits.
     out.remove("");
     out
 }
@@ -207,10 +154,6 @@ enum ParseState {
     Str,
 }
 
-/// Strip the surrounding quotes from a `.po` literal and unescape
-/// the C-style sequences gettext emits. Returns an empty string for
-/// any malformed input — the worst case is that one entry is lost,
-/// not that the whole catalog fails to parse.
 fn unquote_po(token: &str) -> String {
     let bytes = token.as_bytes();
     if bytes.len() < 2 || bytes[0] != b'"' || bytes[bytes.len() - 1] != b'"' {

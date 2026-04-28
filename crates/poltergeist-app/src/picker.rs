@@ -1,32 +1,5 @@
-//! Selective import / export picker — Rust counterpart of Python's
-//! `ui/node_picker_dialog.py`.
-//!
-//! The picker owns a deep clone of the source tree so the UI can
-//! freely toggle check states without ever mutating the live
-//! personal/team trees. On accept the live tree is rebuilt from the
-//! still-checked subset; on cancel the whole session is discarded.
-//!
-//! Tristate semantics mirror Qt's `ItemIsAutoTristate`:
-//!
-//! - Folder checked: all descendants checked
-//! - Folder unchecked: all descendants unchecked
-//! - Folder partial: at least one descendant differs from the rest
-//!   of its siblings
-//! - Toggling a partial folder snaps it to fully checked first
-//!   (matches the Python branch where `state != PartiallyChecked`
-//!   is required before propagating downwards).
-//!
-//! Folder roll-up (children -> parent) is recomputed on every
-//! mutation rather than being driven by an event-loop callback so
-//! the data model stays self-consistent regardless of which path
-//! triggered the change.
-
 use poltergeist_core::models::{Folder, Node};
 
-/// Tristate check value for a single picker row.
-///
-/// Numeric values (0/1/2) are kept stable so they can be passed to
-/// the Slint UI directly without going through a mapping table.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PickerCheck {
     Unchecked = 0,
@@ -40,9 +13,6 @@ impl PickerCheck {
     }
 }
 
-/// Why we opened the picker. The accept handler in `main.rs`
-/// dispatches on this to decide whether to write a JSON file or
-/// merge/replace into one of the live trees.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PickerPurpose {
     ExportPersonal,
@@ -52,17 +22,12 @@ pub enum PickerPurpose {
 }
 
 impl PickerPurpose {
-    /// Reserved for future toolbar gating; kept to mirror the
-    /// import/export branch shape used in `main.rs`.
     #[allow(dead_code)]
     pub fn is_export(self) -> bool {
         matches!(self, Self::ExportPersonal | Self::ExportTeam)
     }
 }
 
-/// One node in the picker's working tree. Wraps the original `Node`
-/// so the accept step can reach back for fields (id, color, match
-/// rule, …) that the picker itself doesn't surface.
 #[derive(Clone, Debug)]
 pub struct PickerNode {
     pub source: Node,
@@ -106,21 +71,11 @@ impl PickerNode {
     }
 }
 
-/// Active picker session attached to `AppState`. None when the
-/// modal isn't on screen.
 pub struct PickerSession {
     pub purpose: PickerPurpose,
     pub roots: Vec<PickerNode>,
-    /// Output path (export) or input path (import) — used purely
-    /// for the status text after accept.
     pub file_path: std::path::PathBuf,
-    /// Path-from-roots of the row under each visible index. Refreshed
-    /// every time we re-flatten so callbacks can resolve `i32`
-    /// indices back to a tree path without scanning.
     pub visible_paths: Vec<Vec<usize>>,
-    /// Filtered tree captured at accept time, kept around so the
-    /// follow-up merge/replace prompt can still apply it after the
-    /// picker modal closes.
     pub pending_filtered: Option<Vec<Node>>,
 }
 
@@ -136,9 +91,6 @@ impl PickerSession {
     }
 }
 
-/// Display row mirrored to the Slint `NodePickerRow` model. Kept
-/// `Copy`-friendly (small) so flattening can rebuild the whole list
-/// on every mutation without performance worry.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PickerVisibleRow {
     pub text: String,
@@ -152,11 +104,6 @@ pub struct PickerVisibleRow {
     pub inject_kbd: bool,
 }
 
-/// Walk the (deep-cloned) picker tree top-to-bottom, skipping the
-/// children of collapsed folders, and produce one display row per
-/// visible node along with its tree path. Path lengths grow with
-/// depth so they double as a stable identifier the click callbacks
-/// can use to find the corresponding `PickerNode` again.
 pub fn flatten(roots: &[PickerNode]) -> (Vec<PickerVisibleRow>, Vec<Vec<usize>>) {
     let mut rows = Vec::new();
     let mut paths = Vec::new();
@@ -201,10 +148,6 @@ fn node_at_mut<'a>(roots: &'a mut [PickerNode], path: &[usize]) -> Option<&'a mu
     Some(cur)
 }
 
-/// Recursively force every descendant to `state`. Skipping the
-/// roll-up step here is intentional: callers always invoke
-/// `recompute_roll_up` immediately after, which collapses the whole
-/// dirty subtree in one pass instead of visiting nodes twice.
 fn apply_state_recursive(node: &mut PickerNode, state: PickerCheck) {
     node.checked = state;
     for child in &mut node.children {
@@ -212,10 +155,6 @@ fn apply_state_recursive(node: &mut PickerNode, state: PickerCheck) {
     }
 }
 
-/// Bubble up the (children -> parent) tristate logic through every
-/// folder. Snippets terminate the recursion because they only ever
-/// hold Checked or Unchecked. Folders with zero children behave as
-/// leaves and keep whatever the user explicitly set.
 fn recompute_roll_up(roots: &mut [PickerNode]) {
     fn walk(node: &mut PickerNode) {
         if !node.is_folder {
@@ -252,10 +191,6 @@ fn recompute_roll_up(roots: &mut [PickerNode]) {
     }
 }
 
-/// Click on a row's checkbox. For folders, snap-partial-to-checked
-/// matches the Python branch where partial parents toggle to fully
-/// checked instead of fully unchecked (less surprising than
-/// nuking the whole subtree).
 pub fn toggle_check(roots: &mut [PickerNode], path: &[usize]) {
     let Some(node) = node_at_mut(roots, path) else {
         return;
@@ -273,8 +208,6 @@ pub fn toggle_check(roots: &mut [PickerNode], path: &[usize]) {
     recompute_roll_up(roots);
 }
 
-/// Toggle the expand chevron on a folder. Snippets never hold the
-/// expanded state so calling this on a snippet path is a no-op.
 pub fn toggle_expand(roots: &mut [PickerNode], path: &[usize]) {
     if let Some(node) = node_at_mut(roots, path) {
         if node.is_folder {
@@ -283,16 +216,12 @@ pub fn toggle_expand(roots: &mut [PickerNode], path: &[usize]) {
     }
 }
 
-/// "Select all" / "Deselect all" toolbar buttons.
 pub fn set_all(roots: &mut [PickerNode], state: PickerCheck) {
     for root in roots.iter_mut() {
         apply_state_recursive(root, state);
     }
 }
 
-/// Count `(folders, snippets)` whose subtree contributes at least
-/// one node to the final selection. Mirrors Python's
-/// `_count_checked` so the on-screen summary stays in sync.
 pub fn count_checked(roots: &[PickerNode]) -> (usize, usize) {
     fn walk(node: &PickerNode) -> (usize, usize) {
         let mut folders = 0usize;
@@ -330,31 +259,17 @@ pub fn count_checked(roots: &[PickerNode]) -> (usize, usize) {
     totals
 }
 
-/// Whether the OK button should accept the picker. Empty selection
-/// disables it (no point exporting / importing zero items).
 pub fn can_accept(roots: &[PickerNode]) -> bool {
     let (folders, snippets) = count_checked(roots);
     folders + snippets > 0
 }
 
-/// Project the picker tree back into a real `Node` tree, keeping
-/// only checked snippets and folders that contain at least one
-/// selected descendant. Folder metadata (id, color, shortcut,
-/// match) is preserved on the projected copy.
-///
-/// Mirrors Python's `_filtered_node`: `Unchecked` -> drop,
-/// `Partial` with empty children -> drop, otherwise keep with the
-/// filtered children list.
 pub fn build_filtered(roots: &[PickerNode]) -> Vec<Node> {
     fn walk(node: &PickerNode) -> Option<Node> {
         if !node.is_folder {
             if node.checked != PickerCheck::Checked {
                 return None;
             }
-            // Snippet metadata is round-tripped untouched — the
-            // source clone in `node.source` still holds every
-            // field (id, color, match rule, prompt-untranslated,
-            // injection mode), so we just hand it back.
             return Some(node.source.clone());
         }
         if node.checked == PickerCheck::Unchecked {
@@ -369,9 +284,6 @@ pub fn build_filtered(roots: &[PickerNode]) -> Vec<Node> {
         if node.checked == PickerCheck::Partial && kept_children.is_empty() {
             return None;
         }
-        // Re-project the folder so we replace its children with the
-        // filtered list while preserving id/color/shortcut/match —
-        // pulled from the (immutable) source clone.
         let Node::Folder(src) = &node.source else {
             return None;
         };
@@ -394,8 +306,6 @@ pub fn build_filtered(roots: &[PickerNode]) -> Vec<Node> {
     out
 }
 
-/// Format the `"N folder(s), M snippet(s) selected"` summary the
-/// picker shows in its toolbar.
 pub fn format_summary(roots: &[PickerNode]) -> String {
     let (f, s) = count_checked(roots);
     format!("{f} folder(s), {s} snippet(s) selected")
@@ -437,10 +347,8 @@ mod tests {
             &nodes,
             std::path::PathBuf::from("ignored.json"),
         );
-        // Default expanded -> 4 rows
         let (rows, _paths) = flatten(&session.roots);
         assert_eq!(rows.len(), 4);
-        // Collapse F1 -> 2 rows (F1 + c)
         session.roots[0].expanded = false;
         let (rows, _paths) = flatten(&session.roots);
         assert_eq!(rows.len(), 2);
@@ -512,14 +420,12 @@ mod tests {
             &nodes,
             std::path::PathBuf::from("ignored.json"),
         );
-        // Uncheck only `b`
         toggle_check(&mut session.roots, &[0, 1]);
         let filtered = build_filtered(&session.roots);
         assert_eq!(filtered.len(), 2);
         match &filtered[0] {
             Node::Folder(f) => {
                 assert_eq!(f.name, "F1");
-                // a, Sub (still has c)
                 assert_eq!(f.children.len(), 2);
                 assert!(matches!(f.children[0], Node::Snippet(ref s) if s.name == "a"));
                 assert!(matches!(f.children[1], Node::Folder(ref s) if s.name == "Sub"));
@@ -536,7 +442,6 @@ mod tests {
             &nodes,
             std::path::PathBuf::from("ignored.json"),
         );
-        // Uncheck both children -> folder becomes Unchecked, dropped
         toggle_check(&mut session.roots, &[0, 0]);
         toggle_check(&mut session.roots, &[0, 1]);
         assert_eq!(session.roots[0].checked, PickerCheck::Unchecked);
@@ -558,7 +463,6 @@ mod tests {
         );
         let (folders, snippets) = count_checked(&session.roots);
         assert_eq!((folders, snippets), (2, 4));
-        // Uncheck F2 wholesale -> 1 folder, 3 snippets
         toggle_check(&mut session.roots, &[1]);
         let (folders, snippets) = count_checked(&session.roots);
         assert_eq!((folders, snippets), (1, 3));

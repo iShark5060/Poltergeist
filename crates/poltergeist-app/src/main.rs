@@ -44,7 +44,6 @@ fn init_logging() {
     tracing_subscriber::fmt().with_env_filter(filter).init();
 }
 
-/// Persists the main window's inner size (logical pixels, clamped to the Slint min size).
 fn persist_main_window_geometry(win: &slint::Window, state: &RefCell<AppState>, base: &Path) {
     let sz = win.size();
     let scale = f64::from(win.scale_factor().max(1.0));
@@ -64,9 +63,6 @@ fn base_dir() -> PathBuf {
         .and_then(|p| p.parent().map(|v| v.to_path_buf()))
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
-    // Development convenience: when launched via `cargo run`, resolve base dir
-    // to the workspace root (instead of `target/debug`) so assets/config are
-    // picked up from the project folder.
     let maybe_target = exe_dir.parent();
     if exe_dir
         .file_name()
@@ -229,10 +225,6 @@ fn sync_options_accent_fields(window: &MainWindow, settings: &Settings) {
     window.set_options_accent_preview(preview);
 }
 
-/// Build a single Slint TreeRowData payload for either a folder or snippet.
-///
-/// Selection is applied later (after construction) so that we don't have to
-/// thread the selection-index through the recursive walk.
 #[allow(clippy::too_many_arguments)]
 fn make_row(
     label: String,
@@ -263,8 +255,6 @@ fn make_row(
     }
 }
 
-/// Default folder/snippet icon tint when the node has no custom colour
-/// (matches `Theme.text` in `main.slint`).
 fn default_tree_icon_tint(is_light: bool) -> Color {
     if is_light {
         Color::from_argb_u8(0xff, 0x1d, 0x1f, 0x24)
@@ -273,7 +263,6 @@ fn default_tree_icon_tint(is_light: bool) -> Color {
     }
 }
 
-/// Preset node colours — same hex values as Python `COLOR_SWATCHES` in `ui/tree_widget.py`.
 pub const COLOR_SWATCHES: &[(&str, &str)] = &[
     ("Red", "#E06C75"),
     ("Orange", "#E5A66C"),
@@ -286,8 +275,6 @@ pub const COLOR_SWATCHES: &[(&str, &str)] = &[
     ("Grey", "#9BA3AF"),
 ];
 
-/// Preset swatches for the anchored colour popup, split into two rows
-/// (clear swatch is Slint-only on the first row).
 fn build_color_swatch_row_pair() -> (ModelRc<ColorSwatchRow>, ModelRc<ColorSwatchRow>) {
     let rows: Vec<ColorSwatchRow> = COLOR_SWATCHES
         .iter()
@@ -303,7 +290,6 @@ fn build_color_swatch_row_pair() -> (ModelRc<ColorSwatchRow>, ModelRc<ColorSwatc
         let empty: ModelRc<ColorSwatchRow> = ModelRc::new(VecModel::from(Vec::new()));
         return (empty.clone(), empty);
     }
-    // 4 + 5 for nine presets (clear swatch is separate in Slint).
     let mid = rows.len() / 2;
     (
         ModelRc::new(VecModel::from(rows[..mid].to_vec())),
@@ -361,9 +347,6 @@ fn flatten_tree(
             Node::Snippet(snippet) => {
                 let user_color = snippet.color.as_deref().and_then(parse_color_hex);
                 let icon_color = user_color.unwrap_or(default_icon_tint);
-                // Mirror Python `_snippet_icon`: typing-mode snippets get
-                // the keyboard glyph, every other mode (clipboard,
-                // shift+ins, typing_compat) gets the clipboard glyph.
                 let effective_mode = snippet.injection.unwrap_or(default_injection);
                 let glyph = if effective_mode == InjectionMode::Typing {
                     icons.keyboard_glyph.clone()
@@ -515,11 +498,6 @@ fn remove_node_by_path(nodes: &mut Vec<Node>, path: &[usize]) -> bool {
     false
 }
 
-/// Detach the node at `path` from `nodes` and return it.
-///
-/// Walks the same way as `remove_node_by_path` but yields the removed
-/// node so the caller can reinsert it elsewhere (used for drag-and-drop
-/// reordering / reparenting).
 fn take_node_at_path(nodes: &mut Vec<Node>, path: &[usize]) -> Option<Node> {
     let (first, rest) = path.split_first()?;
     if rest.is_empty() {
@@ -534,8 +512,6 @@ fn take_node_at_path(nodes: &mut Vec<Node>, path: &[usize]) -> Option<Node> {
     None
 }
 
-/// Insert `node` so it ends up at `path` (i.e. as the `path.last()`-th
-/// child of the parent identified by everything before `path.last()`).
 fn insert_node_at_path(nodes: &mut Vec<Node>, path: &[usize], node: Node) -> bool {
     let (last, parent_path) = match path.split_last() {
         Some(v) => v,
@@ -555,23 +531,10 @@ fn insert_node_at_path(nodes: &mut Vec<Node>, path: &[usize], node: Node) -> boo
     true
 }
 
-/// True iff `inner` starts with every element of `outer` (i.e. `inner`
-/// lives at or below `outer` in the tree). Used to forbid moving a
-/// folder into one of its own descendants.
 fn path_contains(outer: &[usize], inner: &[usize]) -> bool {
     inner.starts_with(outer)
 }
 
-/// Compute the destination path for a drag-and-drop move.
-///
-/// `src_path` is the original tree path of the dragged node. `target_path`
-/// is the path of the row the user dropped on. When `into_folder` is
-/// true and the target is a folder, the node becomes that folder's last
-/// child; otherwise it is reordered to sit immediately above the target
-/// at the target's depth.
-///
-/// Returns `None` if the move would be illegal (drop into self/descendant
-/// or no-op).
 fn compute_move_destination(
     src_path: &[usize],
     target_path: &[usize],
@@ -585,10 +548,7 @@ fn compute_move_destination(
         return None;
     }
     let dest = if into_folder && target_is_folder {
-        // Append into the target folder.
         let mut p = target_path.to_vec();
-        // We don't know the exact child count at compute-time so use
-        // u32::MAX-ish; the inserter clamps to the actual length.
         p.push(usize::MAX);
         p
     } else {
@@ -597,27 +557,13 @@ fn compute_move_destination(
     Some(dest)
 }
 
-/// Perform a tree move: take from `src_path`, insert at `dest_path`.
-///
-/// Removing the source shifts every *sibling of src* (i.e. nodes with
-/// the same parent and a greater child-index) down by one. That shift
-/// propagates into `dest_path` only when `dest` sits in the same parent
-/// as `src` AND the dest child-index at that depth is greater than the
-/// src child-index. Critically, removing a child does NOT shift indices
-/// at any other depth — earlier code that adjusted at the longest common
-/// prefix would, for example, drag `[0,0]` (child of folder A) onto
-/// folder B at top-level `[1]`, see "src[0]=0 < dest[0]=1", subtract 1,
-/// and then incorrectly drop into A instead of B.
 fn move_node_in_tree(nodes: &mut Vec<Node>, src_path: &[usize], mut dest_path: Vec<usize>) -> bool {
     if src_path.is_empty() || dest_path.is_empty() {
         return false;
     }
-    // Reject moving into src's own subtree (dest is at or below src).
     if dest_path.starts_with(src_path) {
         return false;
     }
-    // Apply the shift only when dest passes through src's parent at the
-    // same depth as src and lands at a later sibling slot.
     let src_depth = src_path.len();
     if dest_path.len() >= src_depth {
         let src_parent = &src_path[..src_depth - 1];
@@ -662,10 +608,6 @@ fn empty_chips_model() -> ModelRc<TokenChip> {
     ModelRc::new(VecModel::from(Vec::<TokenChip>::new()))
 }
 
-/// Convert a flattened picker tree into the `NodePickerRow` model
-/// the Slint side renders. `paths` is published back onto the
-/// session so toggle/expand callbacks can resolve flat indices to
-/// tree paths without re-walking.
 fn picker_rows_model(rows: Vec<picker::PickerVisibleRow>) -> ModelRc<NodePickerRow> {
     let converted: Vec<NodePickerRow> = rows
         .into_iter()
@@ -688,10 +630,6 @@ fn empty_picker_rows_model() -> ModelRc<NodePickerRow> {
     ModelRc::new(VecModel::from(Vec::<NodePickerRow>::new()))
 }
 
-/// Re-flatten the picker session and push the resulting rows + path
-/// list back to both the UI and the session. Callers invoke this
-/// after every mutation (toggle / expand / select-all) so the rest
-/// of the picker plumbing only has to touch `roots`.
 fn refresh_picker_view(window: &MainWindow, st: &mut AppState) {
     let Some(session) = st.picker_session.as_mut() else {
         window.set_picker_rows(empty_picker_rows_model());
@@ -706,8 +644,6 @@ fn refresh_picker_view(window: &MainWindow, st: &mut AppState) {
     window.set_picker_can_accept(picker::can_accept(&session.roots));
 }
 
-/// Open the picker modal with the given session. Sets every header
-/// string so the same UI block serves both export and import flows.
 fn show_picker(
     window: &MainWindow,
     st: &mut AppState,
@@ -717,9 +653,6 @@ fn show_picker(
     ok_label: &str,
 ) {
     st.picker_session = Some(session);
-    // Translate label text right at the boundary between Rust and the
-    // UI so callers can keep using English source strings (which lets
-    // grep/IDE search work the same way it does on the Python side).
     window.set_picker_title(i18n::tr(title).into());
     window.set_picker_subtitle(i18n::tr(subtitle).into());
     window.set_picker_ok_label(i18n::tr(ok_label).into());
@@ -727,10 +660,6 @@ fn show_picker(
     window.set_show_picker_panel(true);
 }
 
-/// Open the generic 3-way confirmation modal. `kind` is echoed back
-/// to the `confirm_yes / confirm_no / confirm_cancel` callbacks so
-/// the same modal can drive several workflows without us having to
-/// bake a new property set per prompt.
 fn show_confirm(
     window: &MainWindow,
     title: &str,
@@ -751,10 +680,6 @@ fn show_confirm(
     window.set_show_confirm_panel(true);
 }
 
-/// DeepL source-language list, ported verbatim from
-/// `ui/translation_picker.py::SOURCE_LANGUAGES`. The "Auto-detect"
-/// entry is prepended in the UI side (so the indices used by Slint
-/// are `0 = auto`, `1+ = this list`).
 const TRANSLATION_SOURCE_LANGS: &[(&str, &str)] = &[
     ("BG", "Bulgarian"),
     ("CS", "Czech"),
@@ -787,8 +712,6 @@ const TRANSLATION_SOURCE_LANGS: &[(&str, &str)] = &[
     ("ZH", "Chinese"),
 ];
 
-/// DeepL target-language list, ported verbatim from
-/// `ui/translation_picker.py::TARGET_LANGUAGES`.
 const TRANSLATION_TARGET_LANGS: &[(&str, &str)] = &[
     ("EN-US", "English (US)"),
     ("EN-GB", "English (UK)"),
@@ -823,11 +746,6 @@ const TRANSLATION_TARGET_LANGS: &[(&str, &str)] = &[
     ("UK", "Ukrainian"),
 ];
 
-/// Build the DeepL `{TRANSLATION=...}{TRANSLATION_END}` token from
-/// the picker's two indices. `source_idx == 0` is the synthetic
-/// "Auto-detect" row inserted at the head of the source combo, so
-/// any non-zero index references `TRANSLATION_SOURCE_LANGS[idx-1]`.
-/// Returns `None` for out-of-bounds indices.
 fn build_translation_pair_token(source_idx: i32, target_idx: i32) -> Option<String> {
     let target_code = TRANSLATION_TARGET_LANGS
         .get(target_idx as usize)
@@ -843,17 +761,6 @@ fn build_translation_pair_token(source_idx: i32, target_idx: i32) -> Option<Stri
     Some(token)
 }
 
-/// Best-effort port of `ui/snippet_highlighter.py`'s rule set. Slint's
-/// TextEdit can't be styled inline, so the editor surfaces these as a
-/// chip strip beneath the body. Categories must stay 1:1 with the
-/// Python file so the visual language carries between the two builds.
-///
-/// Rules are evaluated in priority order; if two matches overlap the
-/// earlier (longer-prefix) match wins and the later match is skipped,
-/// matching Qt's `setFormat` overwriting semantics where the *first*
-/// rule that touches a character takes effect for our chip view (the
-/// chip strip is line-flat so we can't represent overlap visually
-/// anyway).
 fn extract_token_chips(body: &str) -> Vec<TokenChip> {
     use regex::{Regex, RegexBuilder};
     use std::sync::OnceLock;
@@ -870,7 +777,6 @@ fn extract_token_chips(body: &str) -> Vec<TokenChip> {
                 .build()
                 .expect("token highlighter regex must compile")
         };
-        // Same operator alternation as Python's `_OP`.
         let op = r"(?:==|=|!=|<>|not\s+in|!in|\bin\b|contains|matches|startswith|endswith)";
         let if_pat = format!(
             r"\{{\s*IF\s+[A-Za-z_][A-Za-z0-9_]*\s*{op}\??\s*[^{{}}]*\s*\}}"
@@ -920,11 +826,6 @@ fn extract_token_chips(body: &str) -> Vec<TokenChip> {
         end: usize,
         text: String,
         category: &'static str,
-        // Index of the rule that produced this hit. Higher = later in
-        // the rule list = wins on ties, mirroring Qt's `setFormat`
-        // overwrite semantics in the Python highlighter (e.g. `{END}`
-        // is matched by both the KEY rule and the BRANCH rule; Python
-        // ends up branch-styled because BRANCH is later in the list).
         rule_idx: usize,
     }
 
@@ -940,10 +841,6 @@ fn extract_token_chips(body: &str) -> Vec<TokenChip> {
             });
         }
     }
-    // Sort: earliest-start first (document order), then longest match
-    // (so a `{IF foo == 'x'}` beats a stray `{END}` substring inside),
-    // then higher rule-index (so later rules overwrite earlier ones on
-    // exact-range ties — Python `setFormat` semantics).
     hits.sort_by(|a, b| {
         a.start
             .cmp(&b.start)
@@ -955,9 +852,6 @@ fn extract_token_chips(body: &str) -> Vec<TokenChip> {
     let mut cursor: usize = 0;
     let mut last_start: Option<usize> = None;
     for hit in hits {
-        // Same start as the previous chip means this is a tie that the
-        // sort already resolved in favour of the higher-priority rule —
-        // skip the duplicate so we emit one chip per range.
         if Some(hit.start) == last_start {
             continue;
         }
@@ -974,9 +868,6 @@ fn extract_token_chips(body: &str) -> Vec<TokenChip> {
     emitted
 }
 
-/// Convenience for `refresh_*_editor`: returns the chips for the body
-/// of the currently selected snippet, or an empty vec for folders /
-/// no-selection. Keeps the call site one-liner.
 fn chips_for_node(node: Option<&Node>) -> Vec<TokenChip> {
     match node {
         Some(Node::Snippet(s)) => extract_token_chips(&s.text),
@@ -984,13 +875,6 @@ fn chips_for_node(node: Option<&Node>) -> Vec<TokenChip> {
     }
 }
 
-/// Assemble a parameterised token from the popup's input page. `kind`
-/// matches the strings the Slint popup emits via
-/// `build_and_insert_token`. Returns the formatted token on success or
-/// a user-facing error message on validation failure (echoed into the
-/// status bar). Intentionally permissive on whitespace so users can
-/// paste with extra spaces and it still does the right thing — Python
-/// behaves the same way via `str.strip()` in its dialog handlers.
 fn build_token(kind: &str, value: &str) -> Result<String, String> {
     let trimmed = value.trim();
     match kind {
@@ -998,9 +882,6 @@ fn build_token(kind: &str, value: &str) -> Result<String, String> {
             if trimmed.is_empty() {
                 Ok("{DATE}".to_string())
             } else {
-                // Python uses `{DATE:%fmt}` (colon, no `=`) for custom
-                // formats — keep the punctuation identical so generated
-                // snippets are interchangeable across editions.
                 Ok(format!("{{DATE:{}}}", trimmed))
             }
         }
@@ -1017,7 +898,6 @@ fn build_token(kind: &str, value: &str) -> Result<String, String> {
             if trimmed.is_empty() {
                 return Err("Variable token: name cannot be empty".to_string());
             }
-            // Python doesn't validate the name shape; mirror that.
             Ok(format!("{{VAR={}}}", trimmed))
         }
         "database" => {
@@ -1036,11 +916,6 @@ fn build_token(kind: &str, value: &str) -> Result<String, String> {
             if trimmed.is_empty() {
                 return Err("Key combo: combo cannot be empty".to_string());
             }
-            // Translate the `keyboard`-package style ("ctrl+shift+a") that
-            // HotkeyCapture and the user are most likely to type into the
-            // brace token form ("{CTRL+SHIFT+A}") that the injector
-            // expects. We rely on the existing token parser to validate
-            // the shape downstream, so we just normalise casing here.
             let combo = trimmed
                 .split('+')
                 .map(|p| p.trim().to_uppercase())
@@ -1056,8 +931,6 @@ fn build_token(kind: &str, value: &str) -> Result<String, String> {
             if trimmed.is_empty() {
                 return Err("Translation: target language code cannot be empty".to_string());
             }
-            // DeepL codes are case-insensitive; uppercase keeps the
-            // emitted token consistent with the one-click options.
             Ok(format!(
                 "{{TRANSLATION={}}}{{TRANSLATION_END}}",
                 trimmed.to_uppercase()
@@ -1067,10 +940,6 @@ fn build_token(kind: &str, value: &str) -> Result<String, String> {
     }
 }
 
-/// Resolve the `color` field of a node for the editor's swatch + text-input
-/// pair. Returns (`text_for_input`, `parsed_color`, `has_color`). Invalid
-/// hex strings are echoed back as text but the swatch falls back to "no
-/// colour" so the user can fix the typo without losing it.
 fn node_color_inputs(raw: Option<&str>) -> (String, Color, bool) {
     let text = raw.map(|s| s.to_string()).unwrap_or_default();
     let parsed = parse_color_hex(&text);
@@ -1089,8 +958,6 @@ fn node_color_str(node: &Node) -> Option<&str> {
     }
 }
 
-/// When the selected personal or team tree path changes, bump this so
-/// Slint `TextInput` / `TextEdit` widgets resync from Rust-backed strings.
 fn bump_editor_sync(window: &MainWindow, st: &mut AppState) {
     let cur_p = st
         .selected_personal
@@ -1310,14 +1177,6 @@ fn top_level_folder(nodes: &[Node], folder_id: &str) -> Option<Folder> {
     })
 }
 
-/// Format a Slint key event into a `keyboard`/`global-hotkey` style combo.
-///
-/// Slint represents non-printable keys (arrows, F-keys, Home/End, etc.)
-/// using Private-Use-Area codepoints in `event.text`. We map the most
-/// common ones back to their lowercase names so the produced string
-/// matches the format the rest of the app uses ("ctrl+alt+f1",
-/// "ctrl+shift+space", "alt+a"). Returns "" when the event carried no
-/// usable key (modifier-only or unmappable codepoint).
 fn format_hotkey_event(text: &str, ctrl: bool, alt: bool, shift: bool, meta: bool) -> String {
     let Some(first) = text.chars().next() else {
         return String::new();
@@ -1344,9 +1203,6 @@ fn format_hotkey_event(text: &str, ctrl: bool, alt: bool, shift: bool, meta: boo
     parts.join("+")
 }
 
-/// Map a Slint key codepoint to the matching `keyboard`-package name.
-/// `None` means the press was unmappable (and the caller should ignore
-/// the event rather than emit a partial combo).
 fn key_event_text_to_name(c: char) -> Option<String> {
     match c {
         '\u{0008}' => Some("backspace".into()),
@@ -1359,18 +1215,13 @@ fn key_event_text_to_name(c: char) -> Option<String> {
         '\u{F701}' => Some("down".into()),
         '\u{F702}' => Some("left".into()),
         '\u{F703}' => Some("right".into()),
-        // F1..F24 occupy F704..F71B in Slint's Key enum. Anything past
-        // F24 is exotic enough to ignore.
         '\u{F704}'..='\u{F71B}' => Some(format!("f{}", (c as u32 - 0xF704) + 1)),
         '\u{F727}' => Some("insert".into()),
         '\u{F729}' => Some("home".into()),
         '\u{F72B}' => Some("end".into()),
         '\u{F72C}' => Some("page up".into()),
         '\u{F72D}' => Some("page down".into()),
-        // Printable ASCII: lowercased so "Shift+a" and "a" produce the
-        // same key segment ("shift+a"), matching the Python parent.
         c if c.is_ascii_alphanumeric() => Some(c.to_ascii_lowercase().to_string()),
-        // Punctuation that the OS hotkey hooks understand verbatim.
         c if c.is_ascii_graphic() => Some(c.to_string()),
         _ => None,
     }
@@ -1385,9 +1236,6 @@ fn normalize_hotkey(raw: &str) -> Option<String> {
     }
 }
 
-/// Per-snippet injection-mode picker order in the editor combobox.
-/// Index 0 = "Default" (use the global setting). Order must match the labels
-/// declared in `ui/main.slint` for the snippet ComboBox.
 fn snippet_injection_index(mode: Option<InjectionMode>) -> i32 {
     match mode {
         None => 0,
@@ -1408,8 +1256,6 @@ fn snippet_injection_from_index(idx: i32) -> Option<InjectionMode> {
     }
 }
 
-/// Settings panel default-injection picker order (no "Default" entry —
-/// these are real modes only).
 fn default_injection_index(mode: InjectionMode) -> i32 {
     match mode {
         InjectionMode::Clipboard => 0,
@@ -1444,10 +1290,6 @@ fn theme_from_index(idx: i32) -> ThemeMode {
     }
 }
 
-/// Resolves the configured ThemeMode to an actual light/dark choice.
-/// Auto consults the Windows AppsUseLightTheme registry value; on
-/// non-Windows targets (or when the read fails) Auto falls back to
-/// Dark to match the Python parent app's default.
 fn effective_is_light(mode: ThemeMode) -> bool {
     match mode {
         ThemeMode::Light => true,
@@ -1458,14 +1300,10 @@ fn effective_is_light(mode: ThemeMode) -> bool {
     }
 }
 
-/// Font Awesome tree-row glyphs (FA7 Regular/Solid where noted). Kept in one
-/// place so `flatten_tree` / `flatten_team_tree` stay allocation-light.
 #[derive(Clone)]
 struct IconAssets {
     folder_glyph: String,
     snippet_glyph: String,
-    /// Typing-mode snippets use the keyboard glyph; other injection modes use
-    /// the clipboard-style glyph (parity with the old Python `_snippet_icon`).
     keyboard_glyph: String,
     team_locked_color: Color,
 }
@@ -1473,11 +1311,8 @@ struct IconAssets {
 impl Default for IconAssets {
     fn default() -> Self {
         Self {
-            // f07c = folder-open (Regular)
             folder_glyph: '\u{f07c}'.to_string(),
-            // f328 = clipboard-list (Regular)
             snippet_glyph: '\u{f328}'.to_string(),
-            // f11c = keyboard (Regular)
             keyboard_glyph: '\u{f11c}'.to_string(),
             team_locked_color: Color::from_argb_u8(0xff, 0xb5, 0xba, 0xc1),
         }
@@ -1485,9 +1320,6 @@ impl Default for IconAssets {
 }
 
 fn share_status_text(status: team_pack::ShareStatus, version: i64) -> String {
-    // The version-bearing variants use placeholder substitution so a
-    // single source string covers both the "(pack vN)" and bare cases
-    // — translators only have to localise the prefix once.
     match status {
         team_pack::ShareStatus::Reachable => {
             if version > 0 {
@@ -1508,8 +1340,6 @@ fn share_status_text(status: team_pack::ShareStatus, version: i64) -> String {
     }
 }
 
-/// 0 = unconfigured, 1 = reachable, 2 = cached, 3 = unreachable.
-/// Mirrors the slint-side switch in the share-path status indicator.
 fn share_status_kind(status: team_pack::ShareStatus) -> i32 {
     match status {
         team_pack::ShareStatus::Unconfigured => 0,
@@ -1519,9 +1349,6 @@ fn share_status_kind(status: team_pack::ShareStatus) -> i32 {
     }
 }
 
-/// Human-readable native names mirrored to Slint's language combo.
-/// We match the Python build's SUPPORTED_LANGUAGES list so the labels
-/// look the same on both ports.
 const SUPPORTED_LANGUAGES: &[(&str, &str)] = &[
     ("en", "English"),
     ("de", "Deutsch"),
@@ -1558,15 +1385,6 @@ fn available_languages_model() -> ModelRc<SharedString> {
     )
 }
 
-/// Switch the active translation locale for both the Slint `@tr(...)`
-/// strings *and* the Rust-side `i18n::tr` catalog.
-///
-/// Slint flips translations live (no app restart) once you call this,
-/// so the language picker in Options can take effect immediately —
-/// matching how Python's `_apply_translations` would have to restart
-/// the Qt application. We simply log on failure rather than aborting
-/// because the supported list is hard-coded above and we'd rather keep
-/// the app usable in English than crash on a stale config value.
 fn apply_bundled_translation(code: &str) {
     let normalized = code.trim().to_ascii_lowercase();
     let target: &str = if normalized.is_empty() || normalized == "en" {
@@ -1574,15 +1392,10 @@ fn apply_bundled_translation(code: &str) {
     } else {
         &normalized
     };
-    // Keep the Rust-side lookup in lock-step with Slint so any
-    // status-bar / dialog string we build in Rust uses the same locale
-    // the UI is currently rendering with.
     i18n::set_locale(target);
     match slint::select_bundled_translation(target) {
         Ok(()) => {}
         Err(slint::SelectBundledTranslationError::NoTranslationsBundled) => {
-            // Build was produced without `with_bundled_translations` —
-            // not an error, just means we ship English only.
         }
         Err(slint::SelectBundledTranslationError::LanguageNotFound {
             available_languages,
@@ -1595,8 +1408,6 @@ fn apply_bundled_translation(code: &str) {
     }
 }
 
-/// Apply a deepl status string to the Slint `deepl_status_kind` enum:
-/// 1 = success, 2 = failure, 0 = unknown / not configured.
 fn deepl_status_kind_from_msg(api_key: &str, ok: Option<bool>) -> i32 {
     if api_key.trim().is_empty() {
         return 0;
@@ -1608,14 +1419,6 @@ fn deepl_status_kind_from_msg(api_key: &str, ok: Option<bool>) -> i32 {
     }
 }
 
-/// Validate `key` against the DeepL `usage` endpoint and reflect the
-/// result on the Options panel. Shared between the explicit "Validate"
-/// button and the 700ms debounce timer triggered by typing.
-///
-/// `from_button` controls whether the result also tweaks the global
-/// status bar (the button explicitly asked, so we surface success
-/// loudly; the debounce path stays quiet on success and only
-/// announces failures via the inline label).
 fn run_deepl_validation(window: &MainWindow, key: &str, from_button: bool) {
     let key = key.trim();
     if key.is_empty() {
@@ -1659,13 +1462,6 @@ fn run_deepl_validation(window: &MainWindow, key: &str, from_button: bool) {
     }
 }
 
-/// `chrono::Local::now().format(<fmt>)` with safety guards. Returns
-/// "(invalid format)" on parser errors so the Options preview never
-/// panics or surfaces a stack trace — matches Python's
-/// `_update_date_preview` exception branch.
-///
-/// An empty `fmt` string falls back to `%d/%m/%Y` to mirror the
-/// app-wide default applied during `Save settings`.
 fn format_date_preview(fmt: &str) -> String {
     use chrono::format::StrftimeItems;
     let trimmed = fmt.trim();
@@ -1674,9 +1470,6 @@ fn format_date_preview(fmt: &str) -> String {
     } else {
         trimmed
     };
-    // `parse_to_owned` validates the spec without rendering — invalid
-    // tokens (e.g. `%Q`) bubble up as `ParseError` instead of
-    // panicking inside the format machinery.
     let items = match StrftimeItems::new(effective).parse_to_owned() {
         Ok(items) => items,
         Err(_) => return "(invalid format)".to_string(),
@@ -1686,16 +1479,9 @@ fn format_date_preview(fmt: &str) -> String {
         .to_string()
 }
 
-/// Spawn the OS default-browser handler for `url`. No-op on errors —
-/// the About modal links are non-critical UX and we don't want a
-/// missing `xdg-open` to crash the app on a stripped-down Linux box.
 fn open_url_in_browser(url: &str) {
     #[cfg(target_os = "windows")]
     {
-        // `cmd /c start "" <url>` opens via the registered protocol
-        // handler. The empty quoted string is the window title arg
-        // that `start` requires when the next token might look like a
-        // command path.
         let _ = std::process::Command::new("cmd")
             .args(["/c", "start", "", url])
             .spawn();
@@ -1766,7 +1552,6 @@ fn detect_edition(base_dir: &Path) -> Edition {
 fn desired_hotkey_bindings(cfg: &PoltergeistConfig, team_tree: &[Node]) -> Vec<(String, String)> {
     let mut bindings = Vec::new();
 
-    // Team folder shortcuts have highest precedence.
     for node in team_tree {
         if let Node::Folder(folder) = node {
             let hk = cfg
@@ -1781,7 +1566,6 @@ fn desired_hotkey_bindings(cfg: &PoltergeistConfig, team_tree: &[Node]) -> Vec<(
         }
     }
 
-    // Personal folder shortcuts are second.
     for node in &cfg.tree_personal {
         if let Node::Folder(folder) = node {
             if let Some(hotkey) = folder.shortcut.as_deref().and_then(normalize_hotkey) {
@@ -1790,7 +1574,6 @@ fn desired_hotkey_bindings(cfg: &PoltergeistConfig, team_tree: &[Node]) -> Vec<(
         }
     }
 
-    // Main popup hotkey is fallback.
     if let Some(main_hotkey) = normalize_hotkey(&cfg.settings.hotkey) {
         bindings.push((String::from("main"), main_hotkey));
     }
@@ -1817,10 +1600,6 @@ fn open_popup_for_nodes(
     source_label: &str,
 ) {
     st.current_context = capture_context(&st.cfg.settings.context_patterns);
-    // Build a fresh navigation stack rooted at the requested source,
-    // pruned by the current context (matches the Python QMenu's
-    // _filter_nodes pass — empty folders and rejected snippets are
-    // dropped entirely).
     let filtered = filter_nodes_for_popup(source_nodes, &st.current_context);
     st.popup_nav_stack = vec![filtered];
     refresh_popup_visible(snippet_popup, st);
@@ -1830,10 +1609,6 @@ fn open_popup_for_nodes(
     let _ = snippet_popup.show();
 }
 
-/// Filter `nodes` against `context`, recursively pruning empty folders
-/// and snippets whose match-rule rejects the current context. Mirrors
-/// `popup_menu._filter_nodes` in the Python build so the picker doesn't
-/// surface dead entries the user can't act on.
 fn filter_nodes_for_popup(nodes: &[Node], context: &HashMap<String, String>) -> Vec<Node> {
     let mut out = Vec::new();
     for node in nodes {
@@ -1893,7 +1668,6 @@ fn collect_popup_snippets(nodes: &[Node], prefix: &str, out: &mut Vec<(String, S
     }
 }
 
-/// Recompute the popup's primary column (top-level folders + root snippets).
 fn refresh_popup_visible(popup: &SnippetPopup, st: &mut AppState) {
     let mut main_items: Vec<PopupMainItem> = Vec::new();
     st.popup_main_kinds.clear();
@@ -1972,9 +1746,6 @@ fn popup_clear_submenu(st: &mut AppState, popup: &SnippetPopup) {
     popup.set_open_folder_row(-1);
 }
 
-/// Place the popup at the OS cursor (clamped to the screen) and stash
-/// its physical-pixel bounds in `AppState` so the click-outside watcher
-/// can tell whether a stray mouse press belongs to us.
 fn position_popup_at_cursor(popup: &SnippetPopup, st: &mut AppState) {
     if let Some((x, y)) = poltergeist_platform_win::cursor::position() {
         let pos_x = x.saturating_sub(8);
@@ -1984,9 +1755,6 @@ fn position_popup_at_cursor(popup: &SnippetPopup, st: &mut AppState) {
             .set_position(slint::PhysicalPosition::new(pos_x, pos_y));
         let scale = popup.window().scale_factor().max(1.0);
         let size = popup.window().size();
-        // Window size in physical pixels — at first show this may be
-        // the placeholder default; the watcher refreshes it the next
-        // tick once Slint has laid the popup out.
         let w = size.width as i32;
         let h = if size.height == 0 {
             (460.0_f32 * scale) as i32
@@ -2146,71 +1914,31 @@ struct AppState {
     edition: Edition,
     team_tree: Vec<Node>,
     db_registry: DatabaseRegistry,
-    /// Folder paths whose children are currently hidden in the personal
-    /// tree. Lives only in memory (matches Python's QTreeWidget which
-    /// `expandAll()`s on every full reload).
     personal_collapsed: HashSet<Vec<usize>>,
     team_collapsed: HashSet<Vec<usize>>,
     current_context: HashMap<String, String>,
-    /// Flat path mapping for the personal tree, parallel to the visual rows.
     personal_paths: Vec<Vec<usize>>,
     selected_personal: Option<usize>,
-    /// Same as `personal_paths` but for the team tree.
     team_paths: Vec<Vec<usize>>,
     selected_team: Option<usize>,
     team_manifest_version: i64,
     team_source: team_pack::ShareStatus,
     icons: IconAssets,
-    /// Cached so that "Show light mode" toggles don't have to consult the
-    /// settings every redraw — flips on toggle_theme() and during apply.
     is_light_theme: bool,
-    /// Snippet picker navigation stack — the top entry is the
-    /// list currently visible in the SnippetPopup window. Pushing
-    /// a folder's filtered children drills in; popping goes back.
     popup_nav_stack: Vec<Vec<Node>>,
-    /// Top-level rows in the snippet popup (folder vs root snippet).
     popup_main_kinds: Vec<PopupTopKind>,
-    /// Snippets listed in the hover submenu for the active folder.
     popup_sub_visible_kinds: Vec<PopupVisibleKind>,
-    /// Previous personal tree path used to bump Slint editor `sync-version`
-    /// when the user selects a different node.
     prev_personal_editor_path: Option<Vec<usize>>,
-    /// Same for the team editor pane.
     prev_team_editor_path: Option<Vec<usize>>,
-    /// Incremented when the selected editor target changes so Slint text
-    /// widgets resync from Rust-backed properties.
     editor_sync_version: i32,
-    /// Main popup row index whose folder submenu is open (-1 = none).
     popup_open_main_idx: Option<usize>,
-    /// Legacy flat list — kept empty; injection resolves via
-    /// `popup_main_kinds` / `popup_sub_visible_kinds`.
     popup_visible_kinds: Vec<PopupVisibleKind>,
-    /// Screen-space bounds of the snippet popup in physical pixels
-    /// while it's visible. Used by the 125ms tick to dismiss the
-    /// popup when the user clicks anywhere outside it.
     popup_bounds: Option<(i32, i32, i32, i32)>,
-    /// Foreground window captured at the moment the global hotkey
-    /// fired (before our popup steals focus). The injector uses this
-    /// to restore focus to the user's actual target app right before
-    /// sending keystrokes; without it, paste/typing lands in whatever
-    /// window happens to be focused when the popup closes.
     target_hwnd: Option<WindowHandle>,
-    /// While the "Review text before paste" modal is up, the injection
-    /// is paused mid-flight. This holds everything `confirm_review` needs
-    /// to resume: the prepared (no-DeepL) body, the original snippet
-    /// text (for translation-pair extraction), the captured target
-    /// window, and the resolved injection mode. `cancel_review` simply
-    /// drops it.
     pending_review: Option<PendingReview>,
-    /// Selective import/export session. Holds a deep clone of the
-    /// candidate tree plus the chosen file path; alive only while the
-    /// picker (and the optional follow-up merge/replace prompt) is on
-    /// screen.
     picker_session: Option<picker::PickerSession>,
 }
 
-/// State carried across the user's pre-paste review confirmation.
-/// See `AppState.pending_review` for lifecycle notes.
 struct PendingReview {
     snippet_name: String,
     snippet_text_original: String,
@@ -2226,7 +1954,6 @@ enum PopupVisibleKind {
     InjectSnippet(Snippet),
 }
 
-/// One row in the snippet popup's primary (left) column.
 #[derive(Clone, Debug)]
 enum PopupTopKind {
     Folder(Folder),
@@ -2275,15 +2002,6 @@ fn to_platform_mode(mode: InjectionMode) -> PlatformInjectionMode {
     }
 }
 
-/// Run a snippet through the include/conditional/translation pipeline
-/// and inject the result via the platform driver. Returns a
-/// human-readable status message either way so callers can surface it
-/// to the status bar without re-formatting failure cases.
-///
-/// This is the shared core for the global hotkey path (the snippet
-/// picker popup) and any in-app trigger — keeping it in one place
-/// ensures both routes honour the same DeepL guard, conditional
-/// expansion order, and injection mode resolution.
 fn inject_snippet_now(
     state: &Rc<RefCell<AppState>>,
     snippet: &Snippet,
@@ -2306,10 +2024,6 @@ fn inject_snippet_now(
         Some(&st.current_context),
     );
 
-    // Branch A: snippet contains TRANSLATION blocks AND the user opted
-    // into the review-before-paste flow. Stash everything we need to
-    // resume, pop the modal, and bail out — `confirm_review` will call
-    // back into `finalize_review_inject` once the user clicks OK.
     if snippet.prompt_untranslated_before_paste
         && TranslationService::text_has_translations(&prepared)
     {
@@ -2358,16 +2072,12 @@ fn inject_snippet_now(
         }
         if let Some(window) = main_window.upgrade() {
             window.set_review_text(preview_text.into());
-            // Make sure the main window is visible — otherwise the modal
-            // is invisible (it's an overlay inside MainWindow).
             let _ = window.show();
             window.set_show_review_panel(true);
         }
         return Ok(format!("Review pending for '{snippet_name}'"));
     }
 
-    // Branch B: no review flow — go straight through DeepL (if needed)
-    // and inject. This is the original path.
     let mut prepared = prepared;
     if TranslationService::text_has_translations(&prepared) {
         if st.cfg.settings.deepl_api_key.trim().is_empty() {
@@ -2410,10 +2120,6 @@ fn inject_snippet_now(
     }
 }
 
-/// Called from the `confirm_review` Slint callback. Takes the (possibly
-/// edited) text from the review modal, runs the DeepL pass with the
-/// right body-override semantics, and injects. Mirrors the
-/// `_on_snippet_chosen` post-dialog branch in Python's `app.py`.
 fn finalize_review_inject(
     state: &Rc<RefCell<AppState>>,
     edited_text: &str,
@@ -2431,9 +2137,7 @@ fn finalize_review_inject(
         .unwrap_or_default();
     let edited_changed = edited_text != pending.preview_text;
 
-    // Pick the right injection strategy based on what the user did.
     let (final_text, expanded_override): (String, Option<String>) = if !edited_changed {
-        // No edit → run normal DeepL expansion as if the modal didn't exist.
         if st.cfg.settings.deepl_api_key.trim().is_empty() {
             return Err("Snippet requires DeepL but no API key is configured".to_string());
         }
@@ -2452,8 +2156,6 @@ fn finalize_review_inject(
             .map_err(|e| format!("Translation failed: {e}"))?;
         (translated, None)
     } else if pending.shared_source {
-        // Single shared source → re-translate with the edited body
-        // for every TRANSLATION block (body_override).
         if st.cfg.settings.deepl_api_key.trim().is_empty() {
             return Err("Snippet requires DeepL but no API key is configured".to_string());
         }
@@ -2472,9 +2174,6 @@ fn finalize_review_inject(
             .map_err(|e| format!("Translation failed: {e}"))?;
         (translated, None)
     } else {
-        // Multiple distinct sources → only safe to translate edits when
-        // the *original* snippet has a single TRANSLATION pair (parity
-        // with Python's RawTextDialog edit branch). Otherwise refuse.
         let pairs = TranslationService::translation_pairs_in_text(&pending.snippet_text_original);
         if pairs.len() == 1 {
             if st.cfg.settings.deepl_api_key.trim().is_empty() {
@@ -2530,12 +2229,6 @@ fn main() -> Result<()> {
     let app_base = base_dir();
     let edition = detect_edition(&app_base);
 
-    // Single-instance enforcement runs *before* any UI/tray/hotkey
-    // initialisation so a duplicate launch dies cleanly without
-    // briefly stealing focus or fighting over the global hotkey.
-    // We deliberately use the same Global\ mutex names as the Python
-    // parent (`main.py`), so a Rust+Python mixed install on the same
-    // machine still cooperates within the same edition.
     let _instance_guard =
         match poltergeist_platform_win::single_instance::try_acquire(edition == Edition::Admin) {
             poltergeist_platform_win::single_instance::AcquireResult::Acquired(guard) => guard,
@@ -2548,9 +2241,6 @@ fn main() -> Result<()> {
             }
         };
 
-    // Captured *before* `config::load` would otherwise materialise the
-    // file via downstream save paths — we use it later to drive the
-    // first-run tray balloon (see `polish-first-run-toast`).
     let first_run = config::is_first_run(&app_base);
     let cfg = config::load(&app_base);
     let team_pack = if edition == Edition::User {
@@ -2597,11 +2287,6 @@ fn main() -> Result<()> {
     main_window.set_color_swatch_row_top(sw_top);
     main_window.set_color_swatch_row_bottom(sw_bottom);
 
-    // Borderless snippet picker — separate top-level window so it can be
-    // positioned at the OS cursor (rather than inside MainWindow's frame)
-    // and so triggering it via the global hotkey doesn't yank the whole
-    // app to the foreground with its title bar. Callbacks are wired
-    // *after* `state` is created below since they need to mutate it.
     let snippet_popup = SnippetPopup::new()?;
     let initial_is_light = effective_is_light(cfg.settings.theme);
     let state = Rc::new(RefCell::new(AppState {
@@ -2657,7 +2342,6 @@ fn main() -> Result<()> {
         CloseRequestResponse::HideWindow
     });
 
-    // Debounced save when the user resizes the main window (Slint `changed width/height`).
     let resize_save_enabled = Rc::new(Cell::new(false));
     let resize_geometry_gate_timer = Rc::new(Timer::default());
     {
@@ -2694,7 +2378,6 @@ fn main() -> Result<()> {
         );
     });
 
-    // ---- SnippetPopup callbacks (need state) ----
     {
         let popup_weak = snippet_popup.as_weak();
         let weak_main = main_window.as_weak();
@@ -2817,8 +2500,6 @@ fn main() -> Result<()> {
     main_window.set_deepl_status_kind(if cfg.settings.deepl_api_key.trim().is_empty() {
         0
     } else {
-        // Initial validation summary is informational; we don't know
-        // whether the saved key is valid until the user clicks Validate.
         0
     });
     main_window.set_team_share_text(cfg.settings.team_share_path.clone().into());
@@ -2940,14 +2621,12 @@ fn main() -> Result<()> {
                         }
                         TrayAction::Options => {
                             let _ = window.show();
-                            // Close the About panel if it's open, then open Options.
                             window.set_show_about_panel(false);
                             window.set_show_options_panel(true);
                             window.set_status_text(i18n::tr("Options opened from tray").into());
                         }
                         TrayAction::About => {
                             let _ = window.show();
-                            // Close Options if it's open, then open About.
                             window.set_show_options_panel(false);
                             window.set_show_about_panel(true);
                             window.set_status_text(i18n::tr("About opened from tray").into());
@@ -2996,21 +2675,12 @@ fn main() -> Result<()> {
                 }
                 if !triggered.is_empty() {
                     if let Some(window) = weak_hotkey.upgrade() {
-                        // If the picker is already open, treat the hotkey
-                        // as a toggle: hide it and skip dispatch. Without
-                        // this guard a second tap would just re-open the
-                        // picker on top of itself.
                         if popup_for_hotkey.window().is_visible() {
                             let _ = popup_for_hotkey.hide();
                             let mut st = state_hotkey.borrow_mut();
                             st.popup_bounds = None;
                             st.target_hwnd = None;
                         } else {
-                            // Capture the foreground window NOW, before
-                            // we open the popup (which steals focus).
-                            // Without this, set_foreground() inside the
-                            // injector has no idea where the user wanted
-                            // their keystrokes to land.
                             let captured_target = current_foreground();
                             let mut st = state_hotkey.borrow_mut();
                             st.target_hwnd = captured_target;
@@ -3062,11 +2732,6 @@ fn main() -> Result<()> {
                 }
             }
 
-            // Click-outside watcher: if the picker is visible and the
-            // user has just clicked outside its physical-pixel bounds,
-            // dismiss it. Runs every tick (not gated on hotkey events)
-            // so the user doesn't have to wait for a hotkey to dismiss
-            // the menu by clicking elsewhere on the desktop.
             if popup_for_hotkey.window().is_visible() {
                 let bounds = state_hotkey.borrow().popup_bounds;
                 if let Some(bounds) = bounds {
@@ -3151,15 +2816,6 @@ fn main() -> Result<()> {
         );
     }
 
-    // ------- Debounced auto-save --------------------------------------
-    //
-    // Every edit callback in main.slint also fires `root.request_save()`,
-    // which restarts this 150ms single-shot timer. After the user pauses
-    // editing for that long the JSON is flushed to disk and the toolbar
-    // dot flips to "Saved". The dot color/state is mirrored by the
-    // `save_state_kind` property on MainWindow (0=idle, 1=pending,
-    // 2=saved). We keep the timer alive in an Rc so each invocation of
-    // the request_save callback can reach .start() to reset it.
     let autosave_timer: Rc<Timer> = Rc::new(Timer::default());
     let autosave_pending: Rc<Cell<bool>> = Rc::new(Cell::new(false));
     {
@@ -3204,10 +2860,6 @@ fn main() -> Result<()> {
             );
         });
     }
-
-    // The About dialog is now driven entirely by the `show_about_panel`
-    // property the toolbar button toggles in `main.slint`. Rust no longer
-    // needs to run anything when the user clicks About.
 
     let weak_select = main_window.as_weak();
     let state_select = Rc::clone(&state);
@@ -3258,9 +2910,6 @@ fn main() -> Result<()> {
         if let Some(window) = weak_toggle_personal.upgrade() {
             let mut st = state_toggle_personal.borrow_mut();
             let idx = usize::try_from(index).unwrap_or(usize::MAX);
-            // Snapshot the selected path so we can re-find it once the
-            // tree is rebuilt — the flat index is unstable across an
-            // expand/collapse, but the path is.
             let prev_selected_path = st
                 .selected_personal
                 .and_then(|i| st.personal_paths.get(i))
@@ -3269,9 +2918,6 @@ fn main() -> Result<()> {
                 Some(p) => p.clone(),
                 None => return,
             };
-            // Confirm the row at this index is actually a folder; clicking
-            // a snippet row would never reach the chevron but defend
-            // against future refactors.
             if !matches!(
                 get_node_ref(&st.cfg.tree_personal, &path),
                 Some(Node::Folder(_))
@@ -3328,10 +2974,6 @@ fn main() -> Result<()> {
                 return;
             };
             let trimmed = raw.trim().to_string();
-            // Empty input clears the colour. Otherwise require a literal
-            // we can parse so the swatch always reflects the stored
-            // value; if the user typed garbage we keep the old colour
-            // and warn instead of silently setting an unrenderable hex.
             let new_color = if trimmed.is_empty() {
                 None
             } else if parse_color_hex(&trimmed).is_some() {
@@ -3423,10 +3065,6 @@ fn main() -> Result<()> {
     let weak_insert_team_token = main_window.as_weak();
     main_window.on_insert_team_token(move |token| {
         if let Some(window) = weak_insert_team_token.upgrade() {
-            // Match the per-callback admin gate that `update_team_text`
-            // uses; admins are the only callers in practice (the popup's
-            // team trigger only renders when `is_admin_edition`), but
-            // belt-and-braces in case the popup is reached some other way.
             if !window.get_is_admin_edition() {
                 window.set_status_text(
                     i18n::tr("Team tree editing is only available in admin mode").into(),
@@ -4130,9 +3768,6 @@ fn main() -> Result<()> {
     let state_export_team = Rc::clone(&state);
     main_window.on_export_team(move || {
         if let Some(window) = weak_export_team.upgrade() {
-            // Read-only enforcement is unnecessary here (export is
-            // a read-only op), but we keep it for symmetry with the
-            // Python build where the menu entry is gated.
             let nodes = {
                 let st = state_export_team.borrow();
                 if st.team_tree.is_empty() {
@@ -4194,8 +3829,6 @@ fn main() -> Result<()> {
             window.set_status_text(i18n::tr("Invalid drop target").into());
             return;
         };
-        // Was the *currently selected* node the one we're dragging? If so
-        // we want to keep it selected after the move.
         let was_selected_drag = st.selected_personal == Some(from_idx);
         let target_is_folder = matches!(
             get_node_ref(&st.cfg.tree_personal, &target_path),
@@ -4240,11 +3873,6 @@ fn main() -> Result<()> {
         };
         let mut st = state_move_team.borrow_mut();
         if st.edition != Edition::Admin {
-            // Defense-in-depth: the Slint TreeRow drag callbacks are
-            // already gated on `is_admin_edition`, but a stray
-            // invocation (programmatic, future code) must still be a
-            // no-op so users can never reorder the team tree locally
-            // and accidentally drift from the share.
             window.set_status_text(
                 i18n::tr("Team tree editing is only available in admin mode").into(),
             );
@@ -4274,8 +3902,6 @@ fn main() -> Result<()> {
             window.set_status_text(i18n::tr("Move failed").into());
             return;
         }
-        // Team tree changes only persist after Publish; refresh the local
-        // view so the new ordering is visible immediately.
         refresh_team_editor(&window, &mut st);
         window.set_status_text(i18n::tr("Reordered team tree (publish to persist)").into());
     });
@@ -4460,16 +4086,12 @@ fn main() -> Result<()> {
             st.cfg.settings.default_injection = default_injection_from_index(default_injection_idx);
             st.cfg.settings.theme = theme_from_index(theme_idx);
             st.cfg.settings.language = language_code_from_index(language_idx);
-            // Slint flips bundled translations live; this updates every
-            // `@tr(...)`-marked string in the UI without requiring an
-            // app restart (Python had to restart Qt for the same).
             apply_bundled_translation(&st.cfg.settings.language);
             if let Some(window) = weak_apply.upgrade() {
                 let (sw_top, sw_bottom) = build_color_swatch_row_pair();
                 window.set_color_swatch_row_top(sw_top);
                 window.set_color_swatch_row_bottom(sw_bottom);
             }
-            // Keep parity with current Python rollout where autostart is intentionally disabled.
             st.cfg.settings.start_with_windows = false;
             if autostart {
                 if let Some(window) = weak_apply.upgrade() {
@@ -4481,9 +4103,6 @@ fn main() -> Result<()> {
             }
             st.cfg.settings.deepl_api_key = deepl_key.trim().to_string();
             st.cfg.settings.team_share_path = share.trim().to_string();
-            // The patterns field is a multi-line editor in the new UI;
-            // accept newlines or semicolons as the separator so existing
-            // configs continue to work.
             st.cfg.settings.context_patterns = patterns
                 .split(['\n', ';'])
                 .map(str::trim)
@@ -4588,26 +4207,12 @@ fn main() -> Result<()> {
     let state_validate_deepl = Rc::clone(&state);
     main_window.on_validate_deepl_key(move || {
         if let Some(window) = weak_validate_deepl.upgrade() {
-            // Validate against the live edit field so the user gets
-            // feedback even before pressing Save (matches Python's
-            // `_run_validation` which reads `self._deepl_key.text()`).
             let key = window.get_deepl_api_key_text().trim().to_string();
-            // Reflect the typed value into AppState so subsequent flows
-            // (auto-save, restart, …) can see it; persistence still
-            // requires explicit Save.
             state_validate_deepl.borrow_mut().cfg.settings.deepl_api_key = key.clone();
             run_deepl_validation(&window, &key, true);
         }
     });
 
-    // ---- Debounced live validation -------------------------------
-    //
-    // The Python options dialog uses a 700ms `QTimer.singleShot` that
-    // restarts on every keystroke. We replicate that with a single
-    // `slint::Timer` that we re-arm on each `deepl_key_edited`
-    // callback. The timer captures the latest typed key via a shared
-    // `RefCell<String>` so the debounce always validates the most
-    // recent text, even when intermediate edits are coalesced.
     let deepl_debounce_timer: Rc<Timer> = Rc::new(Timer::default());
     let deepl_pending_key: Rc<RefCell<String>> = Rc::new(RefCell::new(String::new()));
     let weak_deepl_edit = main_window.as_weak();
@@ -4617,16 +4222,8 @@ fn main() -> Result<()> {
     main_window.on_deepl_key_edited(move |text| {
         let key = text.to_string();
         *pending_deepl_edit.borrow_mut() = key.clone();
-        // Also write through to AppState so the on-disk Save path and
-        // any subsequent translation request see the latest value
-        // without requiring the user to press Save first.
         state_deepl_edit.borrow_mut().cfg.settings.deepl_api_key = key.trim().to_string();
         if let Some(window) = weak_deepl_edit.upgrade() {
-            // Mirror the field-bound property explicitly — when the
-            // user types via the bound TextInput Slint already
-            // updates `value`, but pushing it through here keeps the
-            // displayed value and AppState in sync if either side
-            // ever drifts.
             window.set_deepl_api_key_text(key.clone().into());
             if key.trim().is_empty() {
                 window.set_deepl_status_text("No API key".into());
@@ -4718,10 +4315,6 @@ fn main() -> Result<()> {
                 window.set_status_text(i18n::tr("Publish blocked: only admin edition may publish").into());
                 return;
             }
-            // Match the Python flow: short-circuit with an info popup when
-            // there's no share path configured, *before* prompting for
-            // confirmation. Avoids the ugly "are you sure?" -> "actually
-            // nothing happened" sequence.
             let share = st.cfg.settings.team_share_path.trim().to_string();
             if share.is_empty() {
                 drop(st);
@@ -4783,9 +4376,6 @@ fn main() -> Result<()> {
                         &i18n::tr("Team pack published"),
                         &i18n::tr_format("Deployed pack v{0} to the share.", &[&version]),
                     );
-                    // Drop the AppState borrow before showing the modal —
-                    // rfd's blocking dialog can pump the Slint event loop
-                    // and re-enter our handlers (e.g. status auto-clears).
                     drop(st);
                     let mut description = i18n::tr_format("Published pack v{0}.", &[&version]);
                     if let Some(warnings) = warnings_clone {
@@ -4883,9 +4473,6 @@ fn main() -> Result<()> {
         std::process::exit(0);
     });
 
-    // Review-before-paste callbacks. The Slint modal closes itself
-    // before invoking these, so we just resume or abort the pending
-    // injection that `inject_snippet_now()` parked on AppState.
     let weak_review_ok = main_window.as_weak();
     let state_review_ok = Rc::clone(&state);
     main_window.on_confirm_review(move |edited| {
@@ -4907,8 +4494,6 @@ fn main() -> Result<()> {
             .take()
             .map(|p| p.snippet_name)
             .unwrap_or_default();
-        // Drop the captured target HWND too, since the user explicitly
-        // cancelled — they don't want anything sent to that window.
         st.target_hwnd = None;
         drop(st);
         if let Some(window) = weak_review_cancel.upgrade() {
@@ -4929,11 +4514,6 @@ fn main() -> Result<()> {
         open_url_in_browser("https://github.com/iShark5060");
     });
 
-    // Live preview for the Default date-format input. Recomputes
-    // `chrono::Local::now().format(<fmt>)` each keystroke and pushes
-    // the result back to the Slint side; invalid format strings show
-    // "(invalid format)" — same wording as Python's
-    // `_update_date_preview` exception branch.
     let weak_date_preview = main_window.as_weak();
     main_window.on_date_format_edited(move |text| {
         if let Some(window) = weak_date_preview.upgrade() {
@@ -4941,15 +4521,9 @@ fn main() -> Result<()> {
         }
     });
 
-    // Generic browser-open callback used by the About modal's Icon
-    // credits links. Centralised so the Slint side can hand us any
-    // http(s) URL without us needing a dedicated callback per host.
     main_window.on_open_url(move |url| {
         let url = url.trim().to_string();
         if !(url.starts_with("http://") || url.starts_with("https://")) {
-            // Drop quietly — never shell out to anything that isn't an
-            // http(s) URL, otherwise the cmd /c start trick on Windows
-            // would happily launch local executables.
             return;
         }
         open_url_in_browser(&url);
@@ -4983,7 +4557,6 @@ fn main() -> Result<()> {
         let _ = popup_for_close.hide();
     });
 
-    // ---- Selective import/export picker callbacks ----
     let weak_picker_toggle = main_window.as_weak();
     let state_picker_toggle = Rc::clone(&state);
     main_window.on_picker_toggle_check(move |idx| {
@@ -5066,10 +4639,6 @@ fn main() -> Result<()> {
             return;
         };
         let mut st = state_picker_accept.borrow_mut();
-        // Pull the selection out of the session. For exports we
-        // immediately write the file and clear the session; for
-        // imports we keep the session alive so the merge/replace
-        // confirmation modal can use it.
         let (purpose, file_path, filtered) = {
             let Some(session) = st.picker_session.as_mut() else {
                 return;
@@ -5119,18 +4688,11 @@ fn main() -> Result<()> {
                 window.set_picker_rows(empty_picker_rows_model());
             }
             picker::PickerPurpose::ImportPersonal | picker::PickerPurpose::ImportTeam => {
-                // Stash the filtered set on the session, then prompt
-                // the user for merge / replace / cancel. The yes / no
-                // / cancel callbacks below pull `pending_filtered`
-                // back out and apply it.
                 if let Some(session) = st.picker_session.as_mut() {
                     session.pending_filtered = Some(filtered.clone());
                 }
                 let count = filtered.len();
                 drop(st);
-                // The body uses {0} so translators can reorder the
-                // count placement freely; the rest of the multi-line
-                // explanation stays in source-string form.
                 let body = i18n::tr_format(
                     "Import {0} top-level entries.\n\nYes = merge into current tree (as new top-level entries)\nNo  = REPLACE entire tree",
                     &[&count],
@@ -5149,7 +4711,6 @@ fn main() -> Result<()> {
         let _ = &hotkeys_picker_accept;
     });
 
-    // ---- Generic 3-way confirm dispatcher ----
     let weak_confirm_yes = main_window.as_weak();
     let state_confirm_yes = Rc::clone(&state);
     let hotkeys_confirm_yes = Rc::clone(&hotkeys);
@@ -5242,19 +4803,9 @@ fn main() -> Result<()> {
         }
     });
 
-    // We deliberately use `run_event_loop_until_quit()` instead of
-    // `MainWindow::run()` so that the loop keeps running after the user
-    // hits the X button — the close handler returns `HideWindow` and
-    // the app continues to live in the system tray. Only the explicit
-    // tray "Exit" or in-app exit_app() call calls `std::process::exit`.
     if !should_start_hidden {
         let _ = main_window.show();
     }
-    // First-run greeting — fire a single Win32 toast so the user knows
-    // the app is alive in the tray when launching from an installer or
-    // a freshly extracted zip. Skipping the snippet-count summary
-    // here keeps the message short enough for Action Center; deeper
-    // walkthrough lives in Options > About on demand.
     if first_run {
         let combo = state.borrow().cfg.settings.hotkey.clone();
         let combo_display = if combo.trim().is_empty() {
@@ -5302,22 +4853,18 @@ mod tests {
 
     #[test]
     fn format_hotkey_special_keys_named() {
-        // Slint Key.F1 = U+F704
         assert_eq!(
             format_hotkey_event("\u{F704}", true, false, false, false),
             "ctrl+f1"
         );
-        // Slint Key.Space = " "
         assert_eq!(
             format_hotkey_event(" ", true, true, false, false),
             "ctrl+alt+space"
         );
-        // Slint Key.Escape = U+001B — treated as "esc"
         assert_eq!(
             format_hotkey_event("\u{001b}", false, false, false, false),
             "esc"
         );
-        // Slint Key.UpArrow = U+F700
         assert_eq!(
             format_hotkey_event("\u{F700}", false, false, false, false),
             "up"
@@ -5335,9 +4882,6 @@ mod tests {
 
     #[test]
     fn format_hotkey_modifier_order_is_stable() {
-        // Modifiers always appear in ctrl, alt, shift, windows order
-        // regardless of which were toggled — keeps stored shortcuts
-        // canonical so equality checks against existing JSON work.
         assert_eq!(
             format_hotkey_event("a", false, true, true, false),
             "alt+shift+a"
@@ -5392,8 +4936,6 @@ mod tests {
 
     #[test]
     fn extract_chips_in_document_order() {
-        // {WAIT=10} comes before {DATE} in the body — make sure
-        // sort is by start position, not category-rule order.
         let body = "{WAIT=10} ... {DATE} ... {WAIT=20}";
         let chips = extract_token_chips(body);
         let cats: Vec<&str> = chips.iter().map(|c| c.category.as_str()).collect();
@@ -5402,7 +4944,6 @@ mod tests {
 
     #[test]
     fn extract_chips_skips_unknown_tokens() {
-        // {UNKNOWN} is not a recognised token; it must not produce a chip.
         let body = "{UNKNOWN} and {DATE}";
         let chips = extract_token_chips(body);
         assert_eq!(chips.len(), 1);
@@ -5413,7 +4954,6 @@ mod tests {
     fn build_token_date() {
         assert_eq!(build_token("date", "").unwrap(), "{DATE}");
         assert_eq!(build_token("date", "%Y-%m-%d").unwrap(), "{DATE:%Y-%m-%d}");
-        // Whitespace around the format gets trimmed (matches Python).
         assert_eq!(build_token("date", "  %H:%M  ").unwrap(), "{DATE:%H:%M}");
     }
 
@@ -5454,7 +4994,6 @@ mod tests {
             build_token("custom_key", "Ctrl+Alt+F4").unwrap(),
             "{CTRL+ALT+F4}"
         );
-        // Stray plus signs and whitespace are squashed.
         assert_eq!(
             build_token("custom_key", " ctrl + + alt + space ").unwrap(),
             "{CTRL+ALT+SPACE}"
@@ -5484,15 +5023,12 @@ mod tests {
 
     #[test]
     fn translation_pair_auto_detect() {
-        // source idx 0 = "Auto-detect" -> single-language token
         let token = build_translation_pair_token(0, 0).unwrap();
         assert_eq!(token, "{TRANSLATION=EN-US}{TRANSLATION_END}");
     }
 
     #[test]
     fn translation_pair_explicit_source() {
-        // source idx 1 = first entry of TRANSLATION_SOURCE_LANGS = "BG"
-        // target idx 2 = third entry of TRANSLATION_TARGET_LANGS = "DE"
         let token = build_translation_pair_token(1, 2).unwrap();
         assert_eq!(token, "{TRANSLATION=BG>DE}{TRANSLATION_END}");
     }
@@ -5505,9 +5041,6 @@ mod tests {
 
     #[test]
     fn translation_pair_specific_combos() {
-        // Sanity-check the Python-equivalent EN -> ES round trip.
-        // source list contains EN at index 5 (zero-based), so the
-        // Slint index is 5+1 = 6. Target list contains ES at idx 4.
         let en_idx = TRANSLATION_SOURCE_LANGS
             .iter()
             .position(|(c, _)| *c == "EN")
