@@ -2497,11 +2497,7 @@ fn main() -> Result<()> {
     main_window.set_start_with_windows(cfg.settings.start_with_windows);
     main_window.set_deepl_api_key_text(cfg.settings.deepl_api_key.clone().into());
     main_window.set_deepl_status_text(translation_summary.clone().into());
-    main_window.set_deepl_status_kind(if cfg.settings.deepl_api_key.trim().is_empty() {
-        0
-    } else {
-        0
-    });
+    main_window.set_deepl_status_kind(0);
     main_window.set_team_share_text(cfg.settings.team_share_path.clone().into());
     main_window.set_team_share_status_text(
         share_status_text(team_pack.source, team_pack.manifest.version).into(),
