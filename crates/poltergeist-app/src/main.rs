@@ -1395,8 +1395,7 @@ fn apply_bundled_translation(code: &str) {
     i18n::set_locale(target);
     match slint::select_bundled_translation(target) {
         Ok(()) => {}
-        Err(slint::SelectBundledTranslationError::NoTranslationsBundled) => {
-        }
+        Err(slint::SelectBundledTranslationError::NoTranslationsBundled) => {}
         Err(slint::SelectBundledTranslationError::LanguageNotFound {
             available_languages,
         }) => {
