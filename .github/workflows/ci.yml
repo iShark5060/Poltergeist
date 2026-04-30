@@ -26,7 +26,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: useblacksmith/checkout@v1
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -51,12 +51,11 @@ jobs:
   build:
     runs-on: blacksmith-4vcpu-windows-2025
     timeout-minutes: 35
-
     needs: pre-checks
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: useblacksmith/checkout@v1
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -109,7 +108,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: useblacksmith/checkout@v1
         with:
           fetch-depth: 0
 
@@ -147,3 +146,22 @@ jobs:
             dist/poltergeist-nightly-user-windows.zip
             dist/poltergeist-nightly-admin-windows.zip
           fail_on_unmatched_files: true
+
+  discord-status:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
+    needs: [pre-checks, build, release]
+    if: ${{ always() && github.ref == 'refs/heads/main' }}
+
+    steps:
+      - name: Send Discord status
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          status: ${{ contains(needs.*.result, 'failure') && 'failure' || contains(needs.*.result, 'cancelled') && 'cancelled' || 'success' }}
+          content: "<@${{ secrets.DISCORD_USERID }}>"
+          title: ${{ github.workflow}}
+          description: |
+            Version: `nightly`
+            Download: available [here](${{ github.server_url }}/${{ github.repository }}/releases/tag/nightly)
+          color: ${{ contains(needs.*.result, 'failure') && '0xff0000' || contains(needs.*.result, 'cancelled') && '0xffaa00' || '0x00ff00' }}
